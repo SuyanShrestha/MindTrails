@@ -15,6 +15,17 @@ export class GameAnswerOptionDto {
   answerText!: string;
 }
 
+export class SelectedGameAnswerDto extends GameAnswerOptionDto {
+  @ApiProperty({ example: true })
+  isCorrect!: boolean;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    example: "Thank you, that helps me."
+  })
+  feedback!: string | null;
+}
+
 export class GameQuestionDto {
   @ApiProperty({
     format: "uuid",
@@ -24,6 +35,9 @@ export class GameQuestionDto {
 
   @ApiProperty({ example: 1 })
   order!: number;
+
+  @ApiProperty({ example: true })
+  outsider!: boolean;
 
   @ApiProperty({
     example:
@@ -116,6 +130,9 @@ export class AnswerGameQuestionResponseDto {
 
   @ApiProperty({ example: false })
   isCompleted!: boolean;
+
+  @ApiProperty({ type: SelectedGameAnswerDto })
+  selectedAnswer!: SelectedGameAnswerDto;
 
   @ApiPropertyOptional({
     type: GameQuestionDto,

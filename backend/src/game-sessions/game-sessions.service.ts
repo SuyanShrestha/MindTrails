@@ -6,7 +6,6 @@ import {
 import { Prisma, GameQuestion, GameQuestionAnswer, GameSession } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { AnswerGameQuestionDto } from "./dto/answer-game-question.dto";
-import { CreateGameSessionDto } from "./dto/create-game-session.dto";
 import {
   AnswerGameQuestionResponseDto,
   CreateGameSessionResponseDto,
@@ -18,7 +17,13 @@ import { GameQuestionStatusEnum } from "./enums/game-question-status.enum";
 import { GameSessionStatusEnum } from "./enums/game-session-status.enum";
 
 type GameQuestionWithAnswers = GameQuestion & {
-  answers: GameQuestionAnswer[];
+  outsider: boolean;
+  answers: Array<
+    GameQuestionAnswer & {
+      isCorrect: boolean;
+      feedback: string | null;
+    }
+  >;
 };
 
 type GameSessionWithQuestions = GameSession & {
@@ -29,10 +34,7 @@ type GameSessionWithQuestions = GameSession & {
 export class GameSessionsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createSession(
-    userId: string,
-    dto: CreateGameSessionDto
-  ): Promise<CreateGameSessionResponseDto> {
+  async createSession(userId: string): Promise<CreateGameSessionResponseDto> {
     const user = (await this.prisma.user.findUnique({
       where: { id: userId }
     })) as {
@@ -48,9 +50,9 @@ export class GameSessionsService {
     }
 
     const resolvedUserProfile = {
-      gender: dto.gender ?? user.gender,
-      age: dto.age ?? user.age,
-      environment: dto.environment ?? user.environment
+      gender: user.gender,
+      age: user.age,
+      environment: user.environment
     };
 
     if (!resolvedUserProfile.gender || !resolvedUserProfile.age || !resolvedUserProfile.environment) {
@@ -59,12 +61,7 @@ export class GameSessionsService {
       );
     }
 
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: resolvedUserProfile
-    });
-
-    const questionCount = dto.questionCount ?? 3;
+    const questionCount = 10;
 
     const generationContext = this.buildGenerationContext({
       gender: resolvedUserProfile.gender,
@@ -88,17 +85,20 @@ export class GameSessionsService {
         status: GameSessionStatusEnum.IN_PROGRESS,
         totalQuestions: generatedQuestions.length,
         questions: {
-          create: generatedQuestions.map((question, index) => ({
-            order: index + 1,
+          create: generatedQuestions.map((question) => ({
+            order: question.order,
+            outsider: question.outsider,
             questionText: question.questionText,
             status: GameQuestionStatusEnum.PENDING,
             explanation: question.explanation,
             answers: {
-              create: question.answers.map((answerText) => ({
-                answerText
+              create: question.answers.map((answer) => ({
+                answerText: answer.text,
+                isCorrect: answer.correct,
+                feedback: answer.feedback
               }))
             }
-          }))
+          })) as any
         }
       },
       include: {
@@ -115,7 +115,9 @@ export class GameSessionsService {
 
     return {
       session: this.toGameSessionSummaryDto(savedSession),
-      questions: savedSession.questions.map((question) => this.toGameQuestionDto(question))
+      questions: savedSession.questions.map((question) =>
+        this.toGameQuestionDto(question as GameQuestionWithAnswers)
+      )
     };
   }
 
@@ -148,7 +150,9 @@ export class GameSessionsService {
 
     return {
       session: this.toGameSessionSummaryDto(session),
-      currentQuestion: currentQuestion ? this.toGameQuestionDto(currentQuestion) : null
+      currentQuestion: currentQuestion
+        ? this.toGameQuestionDto(currentQuestion as GameQuestionWithAnswers)
+        : null
     };
   }
 
@@ -272,7 +276,16 @@ export class GameSessionsService {
       saved: true,
       session: this.toGameSessionSummaryDto(updatedSession),
       isCompleted: updatedSession.status === GameSessionStatusEnum.COMPLETED,
-      nextQuestion: nextQuestion ? this.toGameQuestionDto(nextQuestion) : null
+      selectedAnswer: {
+        id: selectedAnswer.id,
+        answerText: selectedAnswer.answerText,
+        isCorrect: (selectedAnswer as GameQuestionWithAnswers["answers"][number]).isCorrect,
+        feedback:
+          (selectedAnswer as GameQuestionWithAnswers["answers"][number]).feedback ?? null
+      },
+      nextQuestion: nextQuestion
+        ? this.toGameQuestionDto(nextQuestion as GameQuestionWithAnswers)
+        : null
     };
   }
 
@@ -301,46 +314,118 @@ export class GameSessionsService {
 
     const baseQuestions = [
       {
+        order: 1,
+        outsider: true,
         questionText: `As a ${ageLabel} navigating a ${environmentLabel} setting, when you start feeling overwhelmed, what kind of support would feel most helpful right now?`,
         explanation: "This explores what kind of coping support feels realistic in the moment.",
         answers: [
-          "Pause for a few minutes, breathe, and check in with how I feel.",
-          "Keep pushing and ignore how I feel until the day ends.",
-          "Avoid everyone and bottle everything up.",
-          "Assume the stress will disappear if I do nothing."
+          {
+            text: "Pause for a few minutes, breathe, and check in with how I feel.",
+            correct: true,
+            feedback: "That sounds like a grounded and compassionate first step."
+          },
+          {
+            text: "Keep pushing and ignore how I feel until the day ends.",
+            correct: false,
+            feedback: "That may increase stress if your needs keep getting ignored."
+          },
+          {
+            text: "Avoid everyone and bottle everything up.",
+            correct: false,
+            feedback: "Withdrawing completely can make overwhelm feel heavier."
+          },
+          {
+            text: "Assume the stress will disappear if I do nothing.",
+            correct: false,
+            feedback: "Doing nothing might leave the stress cycle unchanged."
+          }
         ]
       },
       {
+        order: 2,
+        outsider: true,
         questionText:
           `A ${genderLabel} user reports feeling mentally drained for several days. Which response sounds closest to what they would realistically choose next?`,
         explanation: "This helps identify your current response pattern when energy is low.",
         answers: [
-          "Talk to someone I trust or ask for support.",
-          "Take one small step and give myself permission not to solve everything today.",
-          "Pretend everything is fine and continue as usual.",
-          "Withdraw completely without telling anyone how I am doing."
+          {
+            text: "Talk to someone I trust or ask for support.",
+            correct: true,
+            feedback: "Reaching out can reduce isolation and make the load feel lighter."
+          },
+          {
+            text: "Take one small step and give myself permission not to solve everything today.",
+            correct: true,
+            feedback: "A small manageable action can be a healthy way to rebuild momentum."
+          },
+          {
+            text: "Pretend everything is fine and continue as usual.",
+            correct: false,
+            feedback: "Ignoring how drained you feel can make it harder to recover."
+          },
+          {
+            text: "Withdraw completely without telling anyone how I am doing.",
+            correct: false,
+            feedback: "Total withdrawal can make support harder to access."
+          }
         ]
       },
       {
+        order: 3,
+        outsider: true,
         questionText:
           `In a ${environmentLabel} environment, when a difficult situation keeps replaying in your mind, what support would help most?`,
         explanation: "This question surfaces whether the user leans toward reflection, support, or avoidance.",
         answers: [
-          "Space to slow down and process my thoughts calmly.",
-          "A trusted person who can listen without judging me.",
-          "A practical step-by-step way to regain control.",
-          "A distraction so I do not have to think about it at all."
+          {
+            text: "Space to slow down and process my thoughts calmly.",
+            correct: true,
+            feedback: "Creating space to process can help reduce mental looping."
+          },
+          {
+            text: "A trusted person who can listen without judging me.",
+            correct: true,
+            feedback: "Supportive connection can be very regulating in hard moments."
+          },
+          {
+            text: "A practical step-by-step way to regain control.",
+            correct: true,
+            feedback: "Structure can help when your thoughts feel repetitive or stuck."
+          },
+          {
+            text: "A distraction so I do not have to think about it at all.",
+            correct: false,
+            feedback: "Distraction may help briefly, but it may not resolve the underlying stress."
+          }
         ]
       },
       {
+        order: 4,
+        outsider: true,
         questionText:
           "You are worried about an upcoming responsibility and keep postponing it. What approach feels most manageable for you right now?",
         explanation: "This helps gauge coping style around anxiety and avoidance.",
         answers: [
-          "Break it into one tiny step and start there.",
-          "Wait until the pressure becomes unavoidable.",
-          "Judge myself harshly for falling behind.",
-          "Distract myself and hope the stress passes."
+          {
+            text: "Break it into one tiny step and start there.",
+            correct: true,
+            feedback: "A very small first step often makes anxious tasks feel more doable."
+          },
+          {
+            text: "Wait until the pressure becomes unavoidable.",
+            correct: false,
+            feedback: "Waiting may increase stress and make the task feel even heavier."
+          },
+          {
+            text: "Judge myself harshly for falling behind.",
+            correct: false,
+            feedback: "Harsh self-criticism usually makes motivation and confidence worse."
+          },
+          {
+            text: "Distract myself and hope the stress passes.",
+            correct: false,
+            feedback: "Avoidance can give short relief but often keeps the stress active."
+          }
         ]
       }
     ];
@@ -364,6 +449,7 @@ export class GameSessionsService {
     return {
       id: question.id,
       order: question.order,
+      outsider: question.outsider,
       questionText: question.questionText,
       status: question.status as GameQuestionStatusEnum,
       explanation: question.explanation,

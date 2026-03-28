@@ -104,6 +104,7 @@ model GameQuestion {
   sessionId      String
   session        GameSession          @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   order          Int
+  outsider       Boolean              @default(false)
   questionText   String
   isSolvedByUser Boolean              @default(false)
   status         String               @default("PENDING")
@@ -122,6 +123,8 @@ model GameQuestionAnswer {
   questionId        String
   question          GameQuestion       @relation(fields: [questionId], references: [id], onDelete: Cascade)
   answerText        String
+  isCorrect         Boolean            @default(false)
+  feedback          String?
   selectedByAnswers GameUserResponse[] @relation("SelectedAnswer")
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt

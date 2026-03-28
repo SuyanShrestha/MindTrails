@@ -1,11 +1,5 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
-import {
-  ApiBearerAuth,
-  ApiBody,
-  ApiOperation,
-  ApiParam,
-  ApiTags
-} from "@nestjs/swagger";
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiTags } from "@nestjs/swagger";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { JwtUser } from "../common/interfaces/jwt-user.interface";
@@ -15,7 +9,6 @@ import {
 } from "../common/swagger/api-response.decorator";
 import { createResponse } from "../common/utils/response.util";
 import { AnswerGameQuestionDto } from "./dto/answer-game-question.dto";
-import { CreateGameSessionDto } from "./dto/create-game-session.dto";
 import {
   AnswerGameQuestionResponseDto,
   CreateGameSessionResponseDto,
@@ -34,18 +27,14 @@ export class GameSessionsController {
   @ApiOperation({
     summary: "Create a new game session and generate the full question set"
   })
-  @ApiBody({ type: CreateGameSessionDto, required: false })
   @ApiEnvelopeResponse({
     description: "Game session created successfully",
     type: CreateGameSessionResponseDto,
     status: 201
   })
   @ApiStandardErrorResponses({ unauthorized: true })
-  async createSession(
-    @CurrentUser() user: JwtUser,
-    @Body() dto: CreateGameSessionDto = {}
-  ) {
-    const payload = await this.gameSessionsService.createSession(user.sub, dto);
+  async createSession(@CurrentUser() user: JwtUser) {
+    const payload = await this.gameSessionsService.createSession(user.sub);
     return createResponse(payload, "Game session created successfully");
   }
 
