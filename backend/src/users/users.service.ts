@@ -1,6 +1,12 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException
+} from "@nestjs/common";
 import { USERS_REPOSITORY } from "../common/constants/injection-tokens";
 import { UserProfileDto } from "./dto/user-profile.dto";
+import { UpdateMyProfileDto } from "./dto/update-my-profile.dto";
 import { IUsersRepository } from "./interfaces/users-repository.interface";
 import { toUserProfileDto } from "./users.mapper";
 
@@ -19,5 +25,27 @@ export class UsersService {
     }
 
     return toUserProfileDto(user);
+  }
+
+  async updateCurrentUser(
+    userId: string,
+    dto: UpdateMyProfileDto
+  ): Promise<UserProfileDto> {
+    const existingUser = await this.usersRepository.findById(userId);
+
+    if (!existingUser) {
+      throw new NotFoundException("User not found");
+    }
+
+    if (dto.email && dto.email !== existingUser.email) {
+      const userWithEmail = await this.usersRepository.findByEmail(dto.email);
+
+      if (userWithEmail && userWithEmail.id !== userId) {
+        throw new BadRequestException("Email is already in use");
+      }
+    }
+
+    const updatedUser = await this.usersRepository.updateProfile(userId, dto);
+    return toUserProfileDto(updatedUser);
   }
 }
