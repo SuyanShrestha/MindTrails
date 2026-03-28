@@ -254,6 +254,7 @@ export class Ui {
         stateVariables.dialogueSelectedOptionIndex = -1;
         stateVariables.dialogueSelectionStartedMs = 0;
         stateVariables.dialogueSelectionNpcIndex = -1;
+        stateVariables.dialoguePanelRect.visible = false;
         return;
       }
     }
@@ -263,7 +264,10 @@ export class Ui {
         ? stateVariables.dialoguePanelNpcIndex
         : desiredNpcIndex;
     const npc = shownNpcIndex !== -1 ? stateVariables.npcs[shownNpcIndex] : undefined;
-    if (!npc) return;
+    if (!npc) {
+      stateVariables.dialoguePanelRect.visible = false;
+      return;
+    }
 
     const fullScenario = npc.dialogue.scenario;
     const typedScenario = this.updateTypewriterText(fullScenario, shownNpcIndex);
@@ -275,7 +279,9 @@ export class Ui {
     const portraitBoxWidth = 118;
     const textStartX = panelX + portraitBoxWidth + 28;
     const textWidth = panelWidth - portraitBoxWidth - 46;
-    const slideOffsetY = (1 - this.easeOutCubic(stateVariables.dialoguePanelAnim)) * (panelHeight + 36);
+    const slideOffsetY =
+      (1 - this.easeOutCubic(stateVariables.dialoguePanelAnim)) *
+      (panelHeight + 36);
     const mouseX = stateVariables.mouseX;
     const mouseY = stateVariables.mouseY - slideOffsetY;
     const clickXRaw = stateVariables.mouseClickX;
@@ -287,6 +293,14 @@ export class Ui {
     ctx.strokeStyle = "rgba(255, 255, 255, 0.16)";
     ctx.lineWidth = 4;
     ctx.strokeRect(panelX, panelY, panelWidth, panelHeight);
+
+    stateVariables.dialoguePanelRect = {
+      x: panelX,
+      y: panelY + slideOffsetY,
+      width: panelWidth,
+      height: panelHeight,
+      visible: stateVariables.dialoguePanelAnim > 0,
+    };
 
     ctx.fillStyle = "rgba(255,255,255,0.08)";
     ctx.fillRect(panelX + 16, panelY + 16, portraitBoxWidth - 20, 116);

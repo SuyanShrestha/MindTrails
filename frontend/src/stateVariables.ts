@@ -60,6 +60,13 @@ export const stateVariables = {
   dialogueThankYouPendingNpcIndex: -1,
   dialogueThankYouPendingOptionIndex: -1,
   dialogueForceCloseNpcIndex: -1,
+  dialoguePanelRect: {
+    x: 0,
+    y: 0,
+    width: 0,
+    height: 0,
+    visible: false,
+  },
   mouseX: 0,
   mouseY: 0,
   mouseClicked: false,

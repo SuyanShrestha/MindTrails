@@ -22,7 +22,15 @@ export function handleMovementControls() {
     return;
   }
 
-  if (stateVariables.mouseClicked) {
+  const panel = stateVariables.dialoguePanelRect;
+  const clickInDialogue =
+    panel.visible &&
+    stateVariables.mouseClickX >= panel.x &&
+    stateVariables.mouseClickX <= panel.x + panel.width &&
+    stateVariables.mouseClickY >= panel.y &&
+    stateVariables.mouseClickY <= panel.y + panel.height;
+
+  if (stateVariables.mouseClicked && !clickInDialogue) {
     stateVariables.clickMoveTargetX =
       stateVariables.mouseX - stateVariables.bgImage.startPoint.x;
     stateVariables.clickMoveTargetY =
