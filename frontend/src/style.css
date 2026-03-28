@@ -197,19 +197,21 @@ body {
   pointer-events: auto;
 }
 
-.hub-panel--about {
+.hub-panel--modal {
   transform: translateY(120%);
   opacity: 0;
   pointer-events: none;
 }
 
-.hub-stage[data-state="about"] .hub-panel--hub {
+.hub-stage[data-state="about"] .hub-panel--hub,
+.hub-stage[data-state="controls"] .hub-panel--hub {
   transform: translateY(110%);
   opacity: 0.98;
   pointer-events: none;
 }
 
-.hub-stage[data-state="about"] .hub-panel--about {
+.hub-stage[data-state="about"] .hub-panel--about,
+.hub-stage[data-state="controls"] .hub-panel--controls {
   transform: translateY(0);
   opacity: 1;
   pointer-events: auto;
@@ -235,9 +237,9 @@ body {
   color: rgba(0,0,0,0.82);
   font-family: "Press Start 2P", monospace;
   font-size: 12px;
+  font-weight: 700;
   line-height: 1;
   cursor: pointer;
-  box-shadow: 0 10px 22px rgba(0,0,0,0.16);
 }
 
 .hub-modal-close:active {
@@ -255,6 +257,15 @@ body {
   color: #121212;
   font-size: 10px;
   letter-spacing: 0.5px;
+}
+
+.hub-controls-image {
+  width: min(640px, 82vw);
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+  image-rendering: pixelated;
 }
 
 .hub-grid {

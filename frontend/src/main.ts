@@ -89,12 +89,19 @@ type HubModalOptions = {
   id: string;
   childrenHtml: string;
   className?: string;
+  panelClassName?: string;
   closeLabel?: string;
 };
 
-function renderHubModal({ id, childrenHtml, className = "", closeLabel = "Close" }: HubModalOptions) {
+function renderHubModal({
+  id,
+  childrenHtml,
+  className = "",
+  panelClassName = "",
+  closeLabel = "Close",
+}: HubModalOptions) {
   return `
-    <div class="hub-panel hub-panel--about" data-role="${id}" aria-hidden="true">
+    <div class="hub-panel hub-panel--modal ${panelClassName}" data-role="${id}" aria-hidden="true">
       <div class="hub-modal-shell">
         <button class="hub-modal-close" type="button" data-action="${id}-close" aria-label="${closeLabel}">
           X
@@ -209,6 +216,8 @@ function renderHub() {
     stateVariables.soundEnabled = stored === "true";
   }
 
+  const controlsSrc = `${import.meta.env.BASE_URL}assets/controls.png`;
+
   appRoot.innerHTML = `
     <div class="onboard onboard--popin">
       <div class="sound">
@@ -225,7 +234,7 @@ function renderHub() {
                 <div class="hub-grid">
                   <div>
                     <div class="hub-menu">
-                      <div class="hub-link"><span>CONTROL</span><span class="arrow">↗</span></div>
+                      <div class="hub-link" data-action="hub-controls"><span>CONTROL</span><span class="arrow">↗</span></div>
                       <div class="hub-link" data-action="hub-about"><span>ABOUT US</span><span class="arrow">↗</span></div>
                       <div class="hub-link"><span>YOUR PROGRESS</span><span class="arrow">↗</span></div>
                     </div>
@@ -251,6 +260,7 @@ function renderHub() {
           ${renderHubModal({
             id: "hub-about-panel",
             closeLabel: "Close about",
+            panelClassName: "hub-panel--about",
             childrenHtml: `
               <div class="modal-title">ABOUT US</div>
               <div class="modal-text">
@@ -262,6 +272,15 @@ function renderHub() {
                 <div>TEAM PONEGLYPH</div>
                 <div>Nepal-US Hackathon 2026</div>
               </div>
+            `,
+          })}
+          ${renderHubModal({
+            id: "hub-controls-panel",
+            closeLabel: "Close controls",
+            panelClassName: "hub-panel--controls",
+            childrenHtml: `
+              <div class="modal-title">CONTROLS</div>
+              <img class="hub-controls-image" src="${controlsSrc}" alt="Game controls" />
             `,
           })}
         </div>
@@ -304,19 +323,26 @@ function renderHub() {
 
   const hubStage = appRoot.querySelector('[data-state]') as HTMLDivElement | null;
   const aboutPanel = appRoot.querySelector('[data-role="hub-about-panel"]') as HTMLDivElement | null;
-  const openAbout = () => {
-    if (!hubStage || !aboutPanel) return;
-    hubStage.dataset.state = "about";
-    aboutPanel.setAttribute("aria-hidden", "false");
-  };
-  const closeAbout = () => {
-    if (!hubStage || !aboutPanel) return;
-    hubStage.dataset.state = "hub";
-    aboutPanel.setAttribute("aria-hidden", "true");
+  const controlsPanel = appRoot.querySelector('[data-role="hub-controls-panel"]') as HTMLDivElement | null;
+  const setPanelState = (state: "hub" | "about" | "controls") => {
+    if (!hubStage) return;
+    hubStage.dataset.state = state;
+    aboutPanel?.setAttribute("aria-hidden", state === "about" ? "false" : "true");
+    controlsPanel?.setAttribute("aria-hidden", state === "controls" ? "false" : "true");
   };
 
-  appRoot.querySelector('[data-action="hub-about"]')?.addEventListener("click", openAbout);
-  appRoot.querySelector('[data-action="hub-about-panel-close"]')?.addEventListener("click", closeAbout);
+  appRoot.querySelector('[data-action="hub-about"]')?.addEventListener("click", () => {
+    setPanelState("about");
+  });
+  appRoot.querySelector('[data-action="hub-controls"]')?.addEventListener("click", () => {
+    setPanelState("controls");
+  });
+  appRoot.querySelector('[data-action="hub-about-panel-close"]')?.addEventListener("click", () => {
+    setPanelState("hub");
+  });
+  appRoot.querySelector('[data-action="hub-controls-panel-close"]')?.addEventListener("click", () => {
+    setPanelState("hub");
+  });
 }
 
 function renderRegister() {
