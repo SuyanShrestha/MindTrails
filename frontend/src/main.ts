@@ -1,3 +1,4 @@
+import { Assets } from './../public/assets/index';
 import "./style.css";
 import "./controls";
 import {
@@ -164,8 +165,7 @@ function renderLoader() {
       <div class="onboard-bg"></div>
       <div class="onboard-content">
         <div class="loader">
-          <div class="loader-title">MINDTRAIL</div>
-          <div class="loader-tagline">Move through everyday moments • Notice what unfolds.</div>
+          <img src="${Assets.onboarding.namecard}" alt="Mindtrail" style="max-width: 100%; height: auto; display: block;" />
         </div>
       </div>
     </div>
