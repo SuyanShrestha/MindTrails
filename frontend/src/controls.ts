@@ -92,10 +92,14 @@ export function handleMovementControls() {
     stateVariables.player.dirY = 1;
     stateVariables.player.move();
   } else if (stateVariables.isClickMoving) {
+    const img = stateVariables.player.images_front[0];
+    const offsetX = img ? img.width / 2 : 32;
+    const offsetY = img ? img.height : 64;
+
     const playerWorldX =
-      stateVariables.player.startPoint.x - stateVariables.bgImage.startPoint.x;
+      (stateVariables.player.startPoint.x + offsetX) - stateVariables.bgImage.startPoint.x;
     const playerWorldY =
-      stateVariables.player.startPoint.y - stateVariables.bgImage.startPoint.y;
+      (stateVariables.player.startPoint.y + offsetY) - stateVariables.bgImage.startPoint.y;
     const dx = stateVariables.clickMoveTargetX - playerWorldX;
     const dy = stateVariables.clickMoveTargetY - playerWorldY;
     const dist = Math.hypot(dx, dy);
