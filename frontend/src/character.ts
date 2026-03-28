@@ -20,6 +20,8 @@ export class Character {
   isRunning: boolean;
   isBlowingLantern: boolean;
   score: number;
+  stamina: number;
+  staminaMax: number;
 
   constructor() {
     this.startPoint = new Point(0, 0);
@@ -38,6 +40,8 @@ export class Character {
     this.isRunning = false;
     this.isBlowingLantern = false;
     this.score = 0;
+    this.staminaMax = 100;
+    this.stamina = this.staminaMax;
   }
 
   setSprites(sprites: DirectionalSprites) {

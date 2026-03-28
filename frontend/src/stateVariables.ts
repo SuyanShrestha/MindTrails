@@ -44,6 +44,7 @@ export const stateVariables = {
   npcs: [] as NPC[],
   clockPickups: [] as ClockPickup[],
   clockImage: new Image(),
+  staminaImage: new Image(),
   npcPortraits: [] as HTMLCanvasElement[],
   activeNpcIndex: -1,
   dialogueVisibleText: "",

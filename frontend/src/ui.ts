@@ -71,19 +71,164 @@ export class Ui {
     ctx.restore();
   }
 
+  private drawHudPill(
+    text: string,
+    centerX: number,
+    y: number,
+    ctx: CanvasRenderingContext2D = stateVariables.ctx
+  ) {
+    ctx.save();
+    ctx.font = "600 16px Outfit";
+    ctx.textAlign = "center";
+    const paddingX = 14;
+    const paddingY = 6;
+    const textWidth = ctx.measureText(text).width;
+    const w = textWidth + paddingX * 2;
+    const h = 26;
+    const r = h / 2;
+    const x = centerX - w / 2;
+
+    ctx.fillStyle = "rgba(14, 18, 24, 0.75)";
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.arc(x + w - r, y + r, r, -Math.PI / 2, Math.PI / 2);
+    ctx.lineTo(x + r, y + h);
+    ctx.arc(x + r, y + r, r, Math.PI / 2, (Math.PI * 3) / 2);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+    ctx.fillText(text, centerX, y + h - paddingY);
+    ctx.restore();
+  }
+
   renderScore(ctx: CanvasRenderingContext2D = stateVariables.ctx) {
-    ctx.font = "28px Outfit";
-    ctx.textAlign = "right";
-    ctx.fillStyle = "white";
-    const xPos = stateVariables.windowWidth - 30;
-    ctx.fillText(`Score: ${stateVariables.player.score}`, xPos, 40);
+    const xPos = stateVariables.windowWidth - 90;
+    this.drawHudPill(`Score ${stateVariables.player.score}`, xPos, 12, ctx);
+  }
+
+  renderStamina(ctx: CanvasRenderingContext2D = stateVariables.ctx) {
+    const ICON_SIZE = 28;
+    const BAR_X = 16 + ICON_SIZE + 8;
+    const BAR_Y = 14;
+    const BAR_H = 16;
+    const BAR_W = 210;
+    const BAR_CY = BAR_Y + BAR_H / 2;
+    const RADIUS = BAR_H / 2;
+
+    const stamina = stateVariables.player.stamina;
+    const fillW = (stamina / stateVariables.player.staminaMax) * BAR_W;
+    const segments = 5;
+
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.globalAlpha = 0.95;
+    ctx.drawImage(
+      stateVariables.staminaImage,
+      12,
+      BAR_CY - ICON_SIZE / 2,
+      ICON_SIZE,
+      ICON_SIZE
+    );
+    ctx.restore();
+
+    ctx.fillStyle = "rgba(12, 14, 18, 0.82)";
+    ctx.beginPath();
+    ctx.moveTo(BAR_X + RADIUS, BAR_Y);
+    ctx.lineTo(BAR_X + BAR_W - RADIUS, BAR_Y);
+    ctx.arc(BAR_X + BAR_W - RADIUS, BAR_CY, RADIUS, -Math.PI / 2, Math.PI / 2);
+    ctx.lineTo(BAR_X + RADIUS, BAR_Y + BAR_H);
+    ctx.arc(BAR_X + RADIUS, BAR_CY, RADIUS, Math.PI / 2, (Math.PI * 3) / 2);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+    ctx.lineWidth = 1;
+    for (let i = 1; i < segments; i++) {
+      const x = BAR_X + (BAR_W / segments) * i;
+      ctx.beginPath();
+      ctx.moveTo(x, BAR_Y + 3);
+      ctx.lineTo(x, BAR_Y + BAR_H - 3);
+      ctx.stroke();
+    }
+
+    const grad = ctx.createLinearGradient(0, BAR_Y, 0, BAR_Y + BAR_H);
+    grad.addColorStop(0, "#FFC822");
+    grad.addColorStop(0.55, "#FFC822");
+    grad.addColorStop(1, "#F26A21");
+    ctx.fillStyle = grad;
+    if (fillW > 0) {
+      const fillRadius = Math.min(RADIUS, fillW / 2);
+      ctx.beginPath();
+      ctx.moveTo(BAR_X + fillRadius, BAR_Y);
+      ctx.lineTo(BAR_X + fillW - fillRadius, BAR_Y);
+      ctx.arc(
+        BAR_X + fillW - fillRadius,
+        BAR_CY,
+        fillRadius,
+        -Math.PI / 2,
+        Math.PI / 2
+      );
+      ctx.lineTo(BAR_X + fillRadius, BAR_Y + BAR_H);
+      ctx.arc(
+        BAR_X + fillRadius,
+        BAR_CY,
+        fillRadius,
+        Math.PI / 2,
+        (Math.PI * 3) / 2
+      );
+      ctx.closePath();
+      ctx.fill();
+
+      const highlightH = Math.max(2, Math.floor(BAR_H * 0.35));
+      ctx.fillStyle = "rgba(255, 255, 255, 0.18)";
+      ctx.fillRect(BAR_X + 2, BAR_Y + 2, Math.max(0, fillW - 4), highlightH);
+
+      const shadeH = Math.max(2, Math.floor(BAR_H * 0.25));
+      ctx.fillStyle = "rgba(242, 106, 33, 0.45)";
+      ctx.fillRect(
+        BAR_X + 2,
+        BAR_Y + BAR_H - shadeH - 1,
+        Math.max(0, fillW - 4),
+        shadeH
+      );
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(BAR_X, BAR_Y, fillW, BAR_H);
+      ctx.clip();
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.5)";
+      ctx.lineWidth = 1;
+      for (let i = 1; i < segments; i++) {
+        const x = BAR_X + (BAR_W / segments) * i;
+        ctx.beginPath();
+        ctx.moveTo(x, BAR_Y + 3);
+        ctx.lineTo(x, BAR_Y + BAR_H - 3);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.22)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(BAR_X + RADIUS, BAR_Y);
+    ctx.lineTo(BAR_X + BAR_W - RADIUS, BAR_Y);
+    ctx.arc(BAR_X + BAR_W - RADIUS, BAR_CY, RADIUS, -Math.PI / 2, Math.PI / 2);
+    ctx.lineTo(BAR_X + RADIUS, BAR_Y + BAR_H);
+    ctx.arc(BAR_X + RADIUS, BAR_CY, RADIUS, Math.PI / 2, (Math.PI * 3) / 2);
+    ctx.closePath();
+    ctx.stroke();
   }
 
   renderTimer(secondsLeft: number, ctx: CanvasRenderingContext2D = stateVariables.ctx) {
-    ctx.font = "28px Outfit";
-    ctx.textAlign = "left";
-    ctx.fillStyle = "white";
-    ctx.fillText(`Time: ${secondsLeft}s`, 30, 40);
+    const centerX = stateVariables.windowWidth / 2;
+    this.drawHudPill(`Time ${secondsLeft}s`, centerX, 12, ctx);
   }
 
   renderNpcHint(ctx: CanvasRenderingContext2D = stateVariables.ctx) {

@@ -642,6 +642,7 @@ function draw() {
 
   drawChannelledAnimation();
   stateVariables.ui.renderTimer(remainingSeconds);
+  stateVariables.ui.renderStamina();
   stateVariables.ui.renderScore();
   stateVariables.ui.renderNpcHint();
   stateVariables.ui.renderDialogue();
