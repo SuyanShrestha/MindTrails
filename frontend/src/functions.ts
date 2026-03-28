@@ -176,6 +176,10 @@ export function initializeGame() {
     new ClockPickup(centerX + 600, centerY - 350),
   ];
 
+  stateVariables.cursorImages.default.src = "assets/cursor.png";
+  stateVariables.cursorImages.default.onload = upCounter;
+  stateVariables.cursorImage = stateVariables.cursorImages.default;
+
   loadHiddenCharacterSpriteSheet((sprites) => {
     stateVariables.npcPortraits = sprites;
     stateVariables.npcs = createRandomHiddenCharacters(centerX, centerY);
@@ -185,6 +189,7 @@ export function initializeGame() {
   stateVariables.gameState = GameState.running;
 }
 
+// meditating animation
 export function drawChannelledAnimation() {
   if (!stateVariables.isHoldingMeditationKey || stateVariables.meditationStart == null) {
     return;
@@ -242,4 +247,48 @@ export function drawChannelledAnimation() {
     stateVariables.windowWidth / 2,
     barY - 10
   );
+}
+
+// cursor movement
+export function drawCursorImage(
+  ctx: CanvasRenderingContext2D = stateVariables.ctx
+) {
+  const image = stateVariables.cursorImage;
+  if (!image || !image.complete || !image.naturalWidth) {
+    return;
+  }
+
+  const size = 40;
+  const x = stateVariables.mouseX - size / 2;
+  const y = stateVariables.mouseY - size / 2;
+  ctx.drawImage(image, x, y, size, size);
+}
+
+export function drawClickIndicator(
+  ctx: CanvasRenderingContext2D = stateVariables.ctx
+) {
+  const start = stateVariables.clickIndicatorStartMs;
+  if (!start) {
+    return;
+  }
+
+  const durationMs = 800;
+  const elapsed = Date.now() - start;
+  if (elapsed > durationMs) {
+    return;
+  }
+
+  const t = elapsed / durationMs;
+  const alpha = Math.max(0, 0.6 * (1 - t));
+  const radius = 6 + t * 18;
+  const x = stateVariables.clickIndicatorX + stateVariables.bgImage.startPoint.x;
+  const y = stateVariables.clickIndicatorY + stateVariables.bgImage.startPoint.y;
+
+  ctx.save();
+  ctx.strokeStyle = `rgba(230, 242, 240, ${alpha})`;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
 }

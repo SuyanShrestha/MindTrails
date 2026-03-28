@@ -1,6 +1,12 @@
 import "./style.css";
 import "./controls";
-import { adjustCanvasSize, drawChannelledAnimation, initializeGame } from "./functions";
+import {
+  adjustCanvasSize,
+  drawChannelledAnimation,
+  drawClickIndicator,
+  drawCursorImage,
+  initializeGame,
+} from "./functions";
 import { handleMovementControls, handleOtherControls } from "./controls";
 import { GameState, stateVariables } from "./stateVariables";
 
@@ -34,6 +40,7 @@ function draw() {
   stateVariables.ctx.imageSmoothingEnabled = false;
 
   stateVariables.bgImage.show();
+  drawClickIndicator();
 
   stateVariables.npcs.forEach((npc) => npc.show());
   stateVariables.clockPickups.forEach((clock) => clock.show());
@@ -75,6 +82,7 @@ function draw() {
   stateVariables.ui.renderScore();
   stateVariables.ui.renderNpcHint();
   stateVariables.ui.renderDialogue();
+  drawCursorImage();
   stateVariables.mouseClicked = false;
 
   if (remainingMs <= 0) {
