@@ -8,11 +8,29 @@ import { Ui } from "./ui";
 import { GameState, stateVariables, DirectionalSprites } from "./stateVariables";
 
 export function adjustCanvasSize() {
+  const oldWidth = stateVariables.windowWidth;
+  const oldHeight = stateVariables.windowHeight;
+  
   stateVariables.windowWidth = window.innerWidth;
   stateVariables.windowHeight = window.innerHeight;
+  
   const canvas = stateVariables.ctx.canvas;
-  canvas.width = stateVariables.windowWidth;
-  canvas.height = stateVariables.windowHeight;
+  if (canvas) {
+    canvas.width = stateVariables.windowWidth;
+    canvas.height = stateVariables.windowHeight;
+  }
+  
+  if (stateVariables.player && stateVariables.player.startPoint && stateVariables.lantern) {
+    const dx = (stateVariables.windowWidth - oldWidth) / 2;
+    const dy = (stateVariables.windowHeight - oldHeight) / 2;
+    
+    if (dx !== 0 || dy !== 0) {
+      stateVariables.player.startPoint.x += dx;
+      stateVariables.player.startPoint.y += dy;
+      stateVariables.lantern.x += dx;
+      stateVariables.lantern.y += dy;
+    }
+  }
 }
 
 export function upCounter() {
@@ -150,6 +168,8 @@ function loadPlayerSprites(): DirectionalSprites {
 }
 
 export function initializeGame() {
+  adjustCanvasSize();
+
   stateVariables.bgImage = new Maps("main-map.jpg");
   stateVariables.bgImage.initialiseImages();
 

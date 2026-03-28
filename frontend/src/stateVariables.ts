@@ -88,7 +88,7 @@ export const stateVariables = {
   clickIndicatorStartMs: 0,
   endTimeMs: 0,
   lightCooldownMs: 6000,
-  lightDurationMs: 5000,
+  lightDurationMs: 4000,
   lightLastUsedMs: 0,
   assetsLoadCount: 0,
   cursorImages: {
