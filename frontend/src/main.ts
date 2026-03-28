@@ -185,7 +185,7 @@ function renderInfo() {
       <div class="onboard-content onboard-content--center">
         <div class="modal">
           <div class="modal-inner">
-            <div class="modal-text">
+            <div class="modal-text modal-content">
               <div>This world holds familiar situations.</div>
               <div style="margin-top: 14px;">You'll come across people, place and moments.</div>
               <div style="margin-top: 14px;">There’s no right or wrong ways to move through them.</div>
@@ -232,7 +232,7 @@ function renderHub() {
             <div class="modal hub">
               <div class="modal-inner">
                 <div class="modal-title">THE SPACE IS YOURS.</div>
-                <div class="hub-grid">
+                <div class="hub-grid modal-content">
                   <div>
                     <div class="hub-menu">
                       <div class="hub-link" data-action="hub-controls"><span>CONTROL</span><span class="arrow">↗</span></div>
@@ -264,14 +264,16 @@ function renderHub() {
             panelClassName: "hub-panel--about",
             childrenHtml: `
               <div class="modal-title">ABOUT US</div>
-              <div class="modal-text">
-                <div>Mindtrail is a gamified mental health experience built to reduce stigma and encourage early support—especially in culturally conservative communities where such conversations are often avoided.</div>
-                <div style="margin-top: 14px;">We believe awareness begins with small, safe interactions. Through an interactive journey, users step into the role of a guide—walking along pathways, engaging with characters, and navigating real-life situations. By helping others, they gradually build self-awareness, empathy, and confidence to address their own mental health.</div>
-                <div style="margin-top: 14px;">Our approach blends psychology with storytelling—making difficult conversations feel natural, relatable, and stigma-free.</div>
-              </div>
-              <div class="about-credit">
-                <div>TEAM PONEGLYPH</div>
-                <div>Nepal-US Hackathon 2026</div>
+              <div class="modal-content">
+                <div class="modal-text">
+                  <div>Mindtrail is a gamified mental health experience built to reduce stigma and encourage early support—especially in culturally conservative communities where such conversations are often avoided.</div>
+                  <div style="margin-top: 14px;">We believe awareness begins with small, safe interactions. Through an interactive journey, users step into the role of a guide—walking along pathways, engaging with characters, and navigating real-life situations. By helping others, they gradually build self-awareness, empathy, and confidence to address their own mental health.</div>
+                  <div style="margin-top: 14px;">Our approach blends psychology with storytelling—making difficult conversations feel natural, relatable, and stigma-free.</div>
+                </div>
+                <div class="about-credit">
+                  <div>TEAM PONEGLYPH</div>
+                  <div>Nepal-US Hackathon 2026</div>
+                </div>
               </div>
             `,
           })}
@@ -281,7 +283,7 @@ function renderHub() {
             panelClassName: "hub-panel--controls",
             childrenHtml: `
               <div class="modal-title">CONTROLS</div>
-              <img class="hub-controls-image" src="${controlsSrc}" alt="Game controls" />
+              <img class="hub-controls-image modal-content" src="${controlsSrc}" alt="Game controls" />
             `,
           })}
         </div>
@@ -358,7 +360,7 @@ function renderRegister() {
         <div class="modal">
           <div class="modal-inner">
             <div class="modal-title">A FEW THINGS ABOUT YOU</div>
-            <div class="form">
+            <div class="form modal-content">
               <div>
                 <label>What should we call you?</label>
                 <input data-field="name" placeholder="Your name (optional)" />
@@ -507,7 +509,7 @@ function renderLogin() {
         <div class="modal">
           <div class="modal-inner">
             <div class="modal-title">LOGIN</div>
-            <div class="form">
+            <div class="form modal-content">
               <div>
                 <label>Your name</label>
                 <input data-field="login-name" placeholder="Enter your name" />
