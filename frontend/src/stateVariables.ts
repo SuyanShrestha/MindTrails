@@ -90,6 +90,7 @@ export const stateVariables = {
   isHoldingMeditationKey: false,
   meditationStart: null as number | null,
   selectedAvatarId: "Ophelia",
+  soundEnabled: true,
   playerProfile: {
     name: "",
     age: "",
