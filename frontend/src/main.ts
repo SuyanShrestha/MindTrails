@@ -602,6 +602,16 @@ function draw() {
   adjustCanvasSize();
   stateVariables.ctx.imageSmoothingEnabled = false;
 
+  stateVariables.ctx.save();
+  const targetZoom = (stateVariables.isHoldingMeditationKey && stateVariables.meditationStart != null) ? 0.75 : 1.0;
+  stateVariables.meditationZoomLevel += (targetZoom - stateVariables.meditationZoomLevel) * 0.05;
+
+  const cx = stateVariables.windowWidth / 2;
+  const cy = stateVariables.windowHeight / 2;
+  stateVariables.ctx.translate(cx, cy);
+  stateVariables.ctx.scale(stateVariables.meditationZoomLevel, stateVariables.meditationZoomLevel);
+  stateVariables.ctx.translate(-cx, -cy);
+
   stateVariables.bgImage.show();
   drawClickIndicator();
 
@@ -612,6 +622,8 @@ function draw() {
   stateVariables.bgImage.showDepth();
   stateVariables.lantern.showLuminosity();
   stateVariables.lantern.changeLuminosity();
+
+  stateVariables.ctx.restore();
 
   handleOtherControls();
   handleMovementControls();

@@ -168,7 +168,9 @@ export class Lantern {
 
     stateVariables.ctx.fillStyle = gradient;
 
-    stateVariables.ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Expand the fill bounds massively to ensure it covers the entire physical 
+    // canvas even when the context is zoomed out and translated.
+    stateVariables.ctx.fillRect(-canvas.width, -canvas.height, canvas.width * 3, canvas.height * 3);
   }
   changeLuminosity() {
     // fog size now driven by meditation duration in showLuminosity.

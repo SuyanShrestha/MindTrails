@@ -97,6 +97,7 @@ export const stateVariables = {
   cursorImage: new Image(),
   isHoldingMeditationKey: false,
   meditationStart: null as number | null,
+  meditationZoomLevel: 1,
   selectedAvatarId: "Ophelia",
   soundEnabled: true,
   gamePaused: false,

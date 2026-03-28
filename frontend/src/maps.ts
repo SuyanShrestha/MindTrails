@@ -61,14 +61,12 @@ export class Maps {
   }
 
   show(ctx: CanvasRenderingContext2D = stateVariables.ctx) {
-    ctx.clearRect(
-      0,
-      0,
-      stateVariables.windowWidth,
-      stateVariables.windowHeight
-    );
+    ctx.save();
+    ctx.resetTransform();
+    ctx.clearRect(0, 0, stateVariables.windowWidth, stateVariables.windowHeight);
     ctx.fillStyle = "#181425";
     ctx.fillRect(0, 0, stateVariables.windowWidth, stateVariables.windowHeight);
+    ctx.restore();
 
     this.checkEvents();
 
