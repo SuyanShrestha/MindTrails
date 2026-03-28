@@ -170,6 +170,9 @@ export function initializeGame() {
     "assets/pickups/health_pack/health_pack (1).png";
   stateVariables.clockImage.onload = upCounter;
 
+  stateVariables.staminaImage.src = "assets/ui/stamina.png";
+  stateVariables.staminaImage.onload = upCounter;
+
   stateVariables.clockPickups = [
     new ClockPickup(centerX + 100, centerY + 250),
     new ClockPickup(centerX - 400, centerY - 200),

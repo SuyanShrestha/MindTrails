@@ -132,12 +132,33 @@ export function handleMovementControls() {
 }
 
 export function handleOtherControls() {
-  const isHoldingE = !!stateVariables.keyState[69];
   const isMovingKey =
     !!stateVariables.keyState[87] ||
     !!stateVariables.keyState[65] ||
     !!stateVariables.keyState[83] ||
     !!stateVariables.keyState[68];
+  const isMoving = isMovingKey || stateVariables.isClickMoving;
+  const canSprint =
+    !!stateVariables.keyState[16] &&
+    !stateVariables.isHoldingMeditationKey &&
+    stateVariables.player.stamina > 0;
+
+  if (canSprint && isMoving) {
+    stateVariables.player.movement_speed = stateVariables.player.default_speed * 1.6;
+    stateVariables.player.frameTime = 4;
+    stateVariables.player.isRunning = true;
+    stateVariables.player.stamina = Math.max(0, stateVariables.player.stamina - 0.6);
+  } else {
+    stateVariables.player.movement_speed = stateVariables.player.default_speed;
+    stateVariables.player.frameTime = 6;
+    stateVariables.player.isRunning = false;
+    stateVariables.player.stamina = Math.min(
+      stateVariables.player.staminaMax,
+      stateVariables.player.stamina + 0.25
+    );
+  }
+
+  const isHoldingE = !!stateVariables.keyState[69];
   const shouldMeditate = isHoldingE && !isMovingKey;
 
   if (shouldMeditate) {
