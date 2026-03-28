@@ -5,6 +5,7 @@ import { UserRecord } from "./interfaces/user-record.interface";
 export function toBaseUserDto(user: UserRecord): BaseUserDto {
   return {
     id: user.id,
+    name: user.name,
     email: user.email,
     gender: user.gender,
     age: user.age,

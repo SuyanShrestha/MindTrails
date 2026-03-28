@@ -23,4 +23,20 @@ export class UsersRepository implements IUsersRepository {
       }
     })) as UserRecord;
   }
+
+  async updateProfile(
+    id: string,
+    data: {
+      name?: string;
+      email?: string;
+      gender?: string;
+      age?: number;
+      environment?: string;
+    }
+  ): Promise<UserRecord> {
+    return (await this.prisma.user.update({
+      where: { id },
+      data
+    })) as UserRecord;
+  }
 }

@@ -71,6 +71,7 @@ export class AuthService {
     return {
       user: toBaseUserDto({
         id: userId,
+        name: null,
         email,
         passwordHash: "",
         gender: null,

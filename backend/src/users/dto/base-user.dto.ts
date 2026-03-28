@@ -10,6 +10,12 @@ export class BaseUserDto {
   })
   id!: string;
 
+  @ApiPropertyOptional({
+    nullable: true,
+    example: "Bitisha"
+  })
+  name!: string | null;
+
   @ApiProperty({ example: "user@example.com" })
   email!: string;
 
