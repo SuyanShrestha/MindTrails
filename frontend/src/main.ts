@@ -597,7 +597,7 @@ function renderLogin() {
             <div class="modal-title">LOG IN</div>
             <div class="form modal-content">
               <div>
-                <label>Email address</label>
+                <label class="normal-text" >Email address</label>
                 <input data-field="login-email" type="email" placeholder="Enter your email" />
                 <div class="error" data-error="login" style="display:none;"></div>
               </div>
