@@ -1,3 +1,4 @@
+import { GameApi } from "./api/game";
 import { stateVariables } from "./stateVariables";
 
 export class Ui {
@@ -247,12 +248,16 @@ export class Ui {
       stateVariables.dialogueThankYouStartedMs > 0;
 
     if (isThanking) {
+      if (now < stateVariables.dialogueThankYouStartedMs) {
+        return;
+      }
       const elapsed = now - stateVariables.dialogueThankYouStartedMs;
       const durationMs = 1300;
       if (elapsed >= durationMs) {
         stateVariables.dialogueThankYouNpcIndex = -1;
         stateVariables.dialogueThankYouStartedMs = 0;
         stateVariables.dialogueThankYouOptionIndex = -1;
+        stateVariables.dialogueThankYouText = "";
         return;
       }
 
@@ -265,16 +270,70 @@ export class Ui {
       const slideDownY = 20 * eased;
       const bubbleY = baseY + slideDownY;
 
-      const text = "Thank you!";
+      const text = stateVariables.dialogueThankYouText || "Thank you!";
       ctx.save();
       ctx.globalAlpha = alpha;
-      ctx.font = "600 17px Outfit";
-      const bubbleH = 34;
-      const bubbleTopY = bubbleY - bubbleH;
+      ctx.font = "600 15px Outfit";
 
-      ctx.fillStyle = "rgba(255,255,255,0.98)";
+      const maxBubbleW = 280;
+      const padX = 14;
+      const padY = 10;
+      const lineH = 18;
+
+      const words = text.split(/\s+/).filter(Boolean);
+      const lines: string[] = [];
+      let line = "";
+      for (const word of words) {
+        const test = line ? `${line} ${word}` : word;
+        if (ctx.measureText(test).width > maxBubbleW - padX * 2 && line) {
+          lines.push(line);
+          line = word;
+        } else {
+          line = test;
+        }
+      }
+      if (line) lines.push(line);
+
+      const lineWidths = lines.map((l) => ctx.measureText(l).width);
+      const contentW = Math.min(
+        maxBubbleW - padX * 2,
+        Math.max(0, ...lineWidths)
+      );
+      const bubbleW = Math.max(120, Math.ceil(contentW + padX * 2));
+      const bubbleH = Math.max(34, Math.ceil(lines.length * lineH + padY * 2));
+
+      const bubbleTopY = bubbleY - bubbleH;
+      const bubbleX = centerX - bubbleW / 2;
+      const r = 10;
+
+      // Bubble background
+      ctx.fillStyle = "rgba(255,255,255,0.96)";
+      ctx.beginPath();
+      ctx.moveTo(bubbleX + r, bubbleTopY);
+      ctx.lineTo(bubbleX + bubbleW - r, bubbleTopY);
+      ctx.arcTo(bubbleX + bubbleW, bubbleTopY, bubbleX + bubbleW, bubbleTopY + r, r);
+      ctx.lineTo(bubbleX + bubbleW, bubbleTopY + bubbleH - r);
+      ctx.arcTo(
+        bubbleX + bubbleW,
+        bubbleTopY + bubbleH,
+        bubbleX + bubbleW - r,
+        bubbleTopY + bubbleH,
+        r
+      );
+      ctx.lineTo(bubbleX + r, bubbleTopY + bubbleH);
+      ctx.arcTo(bubbleX, bubbleTopY + bubbleH, bubbleX, bubbleTopY + bubbleH - r, r);
+      ctx.lineTo(bubbleX, bubbleTopY + r);
+      ctx.arcTo(bubbleX, bubbleTopY, bubbleX + r, bubbleTopY, r);
+      ctx.closePath();
+      ctx.fill();
+
+      // Text
+      ctx.fillStyle = "#09131a";
       ctx.textAlign = "center";
-      ctx.fillText(text, centerX, bubbleTopY + 22);
+      const textCenterY = bubbleTopY + bubbleH / 2 - ((lines.length - 1) * lineH) / 2;
+      lines.forEach((l, i) => {
+        ctx.fillText(l, centerX, textCenterY + i * lineH + 5);
+      });
 
       const pulseAlpha = Math.max(0, 0.32 - 0.32 * t);
       ctx.globalAlpha = pulseAlpha;
@@ -319,6 +378,7 @@ export class Ui {
     ) {
       stateVariables.dialogueThankYouPendingNpcIndex = -1;
       stateVariables.dialogueThankYouPendingOptionIndex = -1;
+      stateVariables.dialogueThankYouPendingText = "";
       stateVariables.dialogueForceCloseNpcIndex = -1;
     }
 
@@ -382,11 +442,13 @@ export class Ui {
 
         if (stateVariables.dialogueThankYouPendingNpcIndex === dismissedNpcIndex) {
           stateVariables.dialogueThankYouNpcIndex = dismissedNpcIndex;
-          stateVariables.dialogueThankYouStartedMs = now;
+          stateVariables.dialogueThankYouStartedMs = now + 4000;
           stateVariables.dialogueThankYouOptionIndex =
             stateVariables.dialogueThankYouPendingOptionIndex;
+          stateVariables.dialogueThankYouText = stateVariables.dialogueThankYouPendingText || "";
           stateVariables.dialogueThankYouPendingNpcIndex = -1;
           stateVariables.dialogueThankYouPendingOptionIndex = -1;
+          stateVariables.dialogueThankYouPendingText = "";
         }
       }
 
@@ -563,6 +625,30 @@ export class Ui {
 
         if (clickedIndex !== -1) {
           const chosenText = npc.dialogue.options[clickedIndex] ?? "";
+          const questionId = npc.dialogue.questionId;
+          const answerId = npc.dialogue.answerIds?.[clickedIndex];
+          const responseTimeMs = Math.max(0, now - stateVariables.dialogueOptionsRevealAtMs);
+
+          if (stateVariables.currentSessionId && questionId && answerId) {
+            GameApi.answerQuestion(
+              stateVariables.currentSessionId,
+              questionId,
+              answerId,
+              responseTimeMs
+            )
+              .then((resp: any) => {
+                const feedback = resp?.data?.selectedAnswer?.feedback;
+                if (typeof feedback === "string" && feedback.trim().length > 0) {
+                  if (stateVariables.dialogueThankYouPendingNpcIndex === shownNpcIndex) {
+                    stateVariables.dialogueThankYouPendingText = feedback.trim();
+                  }
+                  if (stateVariables.dialogueThankYouNpcIndex === shownNpcIndex) {
+                    stateVariables.dialogueThankYouText = feedback.trim();
+                  }
+                }
+              })
+              .catch((err) => console.error("Failed to report answer:", err));
+          }
           stateVariables.interactions.push({
             npcName: npc.dialogue.name,
             optionIndex: clickedIndex,
@@ -576,6 +662,8 @@ export class Ui {
           stateVariables.dialogueSelectionNpcIndex = shownNpcIndex;
           stateVariables.dialogueThankYouPendingNpcIndex = shownNpcIndex;
           stateVariables.dialogueThankYouPendingOptionIndex = clickedIndex;
+          stateVariables.dialogueThankYouPendingText =
+            npc.dialogue.optionFeedbacks?.[clickedIndex] ?? "Thanks for sharing.";
           stateVariables.dialogueDismissNpcIndex = shownNpcIndex;
           stateVariables.dialogueForceCloseNpcIndex = shownNpcIndex;
           stateVariables.dialoguePanelTarget = 0;

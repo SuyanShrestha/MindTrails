@@ -7,11 +7,16 @@ import {
   drawClickIndicator,
   drawCursorImage,
   initializeGame,
+  preloadGameAssets,
+  preloadImage,
 } from "./functions";
 import { handleMovementControls, handleOtherControls } from "./controls";
 import { GameState, stateVariables } from "./stateVariables";
 import { showGameOverOverlay } from "./gameOverOverlay";
-import { ApiService, getAuthToken, setAuthToken, clearAuthToken } from "./services/api";
+import { getAuthToken, setAuthToken, clearAuthToken } from "./api/client";
+import { AuthApi } from "./api/auth";
+import { UserApi } from "./api/user";
+import { GameApi } from "./api/game";
 
 type AvatarOption = {
   id: string;
@@ -77,15 +82,6 @@ function slideTo(nextRender: () => void) {
     },
     { once: true }
   );
-}
-
-function preloadImage(src: string) {
-  return new Promise<void>((resolve) => {
-    const img = new Image();
-    img.onload = () => resolve();
-    img.onerror = () => resolve();
-    img.src = src;
-  });
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number) {
@@ -190,7 +186,7 @@ function renderLoader() {
     const token = getAuthToken();
     if (token) {
       try {
-        const body = await withTimeout(ApiService.getMe(), 1200);
+        const body = await withTimeout(UserApi.getMe(), 1200);
         if (body.success && body.data && body.data.user) {
           stateVariables.playerProfile.name = body.data.user.name || "";
           stateVariables.playerProfile.age = body.data.user.age?.toString() || "";
@@ -375,7 +371,7 @@ function renderHub() {
   });
 
   appRoot.querySelector('[data-action="hub-enter"]')?.addEventListener("click", () => {
-    slideTo(startGame);
+    slideTo(renderGameLoader);
   });
 
   const hubStage = appRoot.querySelector('[data-state]') as HTMLDivElement | null;
@@ -440,8 +436,8 @@ function renderRegister() {
                 <div class="error" data-error="password" style="display:none;"></div>
               </div>
               <div>
-                <label>Your age (optional)</label>
-                <input data-field="age" placeholder="Age" inputmode="numeric" />
+                <label>Your age *</label>
+                <input data-field="age" placeholder="Age (required)" inputmode="numeric" />
                 <div class="error" data-error="age" style="display:none;"></div>
               </div>
               <div>
@@ -507,8 +503,7 @@ function renderRegister() {
     const emailOk = email.length > 0 && email.includes("@");
     const passwordOk = password.length >= 8;
     const ageOk =
-      ageRaw.length === 0 ||
-      (/^[0-9]{1,3}$/.test(ageRaw) && Number(ageRaw) >= 6 && Number(ageRaw) <= 120);
+      /^[0-9]{1,3}$/.test(ageRaw) && Number(ageRaw) >= 6 && Number(ageRaw) <= 120;
 
     const genderOk = stateVariables.playerProfile.gender.length > 0;
     const environmentOk = stateVariables.playerProfile.environment.length > 0;
@@ -517,7 +512,7 @@ function renderRegister() {
       setError("name", nameOk ? null : "Name must be at least 2 characters.");
       setError("email", emailOk ? null : "Please enter a valid email.");
       setError("password", passwordOk ? null : "Password must be at least 8 characters.");
-      setError("age", ageOk ? null : "Age must be a valid number.");
+      setError("age", ageOk ? null : "Age is required (6–120).");
       setError("gender", genderOk ? null : "Please choose a gender option.");
       setError("environment", environmentOk ? null : "Please choose an environment.");
     }
@@ -575,26 +570,43 @@ function renderRegister() {
     setError("api", null);
 
     try {
-      const regBody = await ApiService.register(email, password);
+      const regBody = await AuthApi.register(email, password);
       const token = regBody.data?.tokens?.accessToken;
       if (token) {
         setAuthToken(token);
+        stateVariables.playerProfile.name = name;
+        stateVariables.playerProfile.age = age;
         const profileData: any = {
           gender: stateVariables.playerProfile.gender,
           environment: stateVariables.playerProfile.environment,
         };
         if (name) profileData.name = name;
-        if (age) profileData.age = Number(age);
+        profileData.age = Number(age);
 
         try {
-          await ApiService.updateMe(profileData);
-          stateVariables.playerProfile.name = name;
-          stateVariables.playerProfile.age = age;
-          slideTo(renderHub);
-          return;
+          await UserApi.updateMe(profileData);
         } catch (patchErr) {
           console.error("Profile update failed:", patchErr);
         }
+
+        // Start creating the game session immediately after registration (prefetch),
+        // so the "Enter the world" step doesn't have to wait as long.
+        stateVariables.sessionPrefetchPromise = GameApi.createSession({
+          gender: stateVariables.playerProfile.gender || undefined,
+          age: stateVariables.playerProfile.age ? Number(stateVariables.playerProfile.age) : undefined,
+          environment: stateVariables.playerProfile.environment || undefined,
+        })
+          .then((sessionResponse: any) => {
+            if (sessionResponse?.success && sessionResponse?.data?.session?.id) {
+              stateVariables.currentSessionId = sessionResponse.data.session.id;
+              stateVariables.gameQuestions = sessionResponse.data.questions || [];
+            }
+            return sessionResponse;
+          })
+          .catch((err) => {
+            console.warn("Session prefetch failed:", err);
+            return Promise.reject(err);
+          });
       }
       slideTo(renderHub);
     } catch (err: any) {
@@ -710,14 +722,16 @@ function renderLogin() {
     setError("login-api", null);
 
     try {
-      const body = await ApiService.login(email, password);
+      const body = await AuthApi.login(email, password);
       const token = body.data?.tokens?.accessToken;
       if (token) {
         setAuthToken(token);
+        // Prefetch the game session as soon as auth is saved,
+        // so entering the world later doesn't have to wait as long.
+        stateVariables.sessionPrefetchPromise = null;
 
-        // fetch user profile just like registration
         try {
-          const uBody = await ApiService.getMe();
+          const uBody = await UserApi.getMe();
           if (uBody.success && uBody.data?.user) {
             stateVariables.playerProfile.name = uBody.data.user.name || "";
             stateVariables.playerProfile.age = uBody.data.user.age?.toString() || "";
@@ -727,9 +741,25 @@ function renderLogin() {
         } catch (profileErr) {
           console.error("Failed to fetch user profile", profileErr);
         }
-
         // slide to hub
         slideTo(renderHub);
+
+        stateVariables.sessionPrefetchPromise = GameApi.createSession({
+          gender: stateVariables.playerProfile.gender || undefined,
+          age: stateVariables.playerProfile.age ? Number(stateVariables.playerProfile.age) : undefined,
+          environment: stateVariables.playerProfile.environment || undefined,
+        })
+          .then((sessionResponse: any) => {
+            if (sessionResponse?.success && sessionResponse?.data?.session?.id) {
+              stateVariables.currentSessionId = sessionResponse.data.session.id;
+              stateVariables.gameQuestions = sessionResponse.data.questions || [];
+            }
+            return sessionResponse;
+          })
+          .catch((err) => {
+            console.warn("Session prefetch failed:", err);
+            return Promise.reject(err);
+          });
       }
     } catch (err: any) {
       // show error & reset button
@@ -740,7 +770,103 @@ function renderLogin() {
       }
     }
   });
+}
 
+function renderGameLoader() {
+  // If we already have a session (e.g., prefetched after register), skip the wait.
+  if (stateVariables.currentSessionId && stateVariables.gameQuestions.length > 0) {
+    startGame();
+    return;
+  }
+
+  stopAvatarAnimation();
+  canvas.style.display = "none";
+  appRoot.style.display = "block";
+  appRoot.dataset.theme = "game-loader";
+  appRoot.innerHTML = `
+    <div class="onboard onboard--game-loader">
+      <div class="onboard-bg"></div>
+      <div class="onboard-content onboard-content--center">
+        <div class="game-loader">
+          <div class="game-loader-text">Preparing the path ahead...</div>
+          <div class="game-loader-progress-container">
+            <div class="game-loader-progress-bar game-loader-progress-bar--animate"></div>
+          </div>
+          <button class="secondary-btn" data-action="back-hub" style="margin-top: 18px; width: 100%;">BACK</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  appRoot.querySelector('[data-action="back-hub"]')?.addEventListener("click", () => {
+    slideTo(renderHub);
+  });
+
+  const showSessionError = (message: string) => {
+    appRoot.dataset.theme = "sky";
+    appRoot.innerHTML = `
+      <div class="onboard onboard--popin">
+        <div class="onboard-bg"></div>
+        <div class="onboard-content onboard-content--center">
+          <div class="modal">
+            <div class="modal-inner">
+              <div class="modal-title">COULDN'T START SESSION</div>
+              <div class="modal-content">
+                <div class="modal-text">${message}</div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="primary-btn" data-action="retry-session" style="width:100%;">RETRY</button>
+              <button class="secondary-btn" data-action="back-hub" style="width:100%; margin-top: 10px;">BACK</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    appRoot.querySelector('[data-action="retry-session"]')?.addEventListener("click", () => {
+      slideTo(renderGameLoader);
+    });
+    appRoot.querySelector('[data-action="back-hub"]')?.addEventListener("click", () => {
+      slideTo(renderHub);
+    });
+  };
+
+  const sessionPromise =
+    stateVariables.sessionPrefetchPromise ??
+    GameApi.createSession({
+      gender: stateVariables.playerProfile.gender || undefined,
+      age: stateVariables.playerProfile.age ? Number(stateVariables.playerProfile.age) : undefined,
+      environment: stateVariables.playerProfile.environment || undefined,
+    });
+  // Consume prefetched promise so we don't accidentally reuse a stale one later.
+  stateVariables.sessionPrefetchPromise = null;
+
+  const assetsPromise = withTimeout(preloadGameAssets(), 15000).catch((err) => {
+    console.warn("Optional asset preloading failed:", err);
+    return true;
+  });
+
+  Promise.allSettled([sessionPromise, assetsPromise]).then(([sessionResult]) => {
+    if (sessionResult.status !== "fulfilled") {
+      console.warn("Session creation failed:", sessionResult.reason);
+      showSessionError(
+        (sessionResult.reason && sessionResult.reason.message) ||
+          "The server didn’t respond. Please try again."
+      );
+      return;
+    }
+
+    const sessionResponse = sessionResult.value as any;
+    if (!sessionResponse?.success || !sessionResponse?.data?.session?.id) {
+      showSessionError("Invalid server response. Please try again.");
+      return;
+    }
+
+    stateVariables.currentSessionId = sessionResponse.data.session.id;
+    stateVariables.gameQuestions = sessionResponse.data.questions || [];
+    startGame();
+  });
 }
 
 function startGame() {
@@ -748,15 +874,32 @@ function startGame() {
     slideTo(renderLogin);
     return;
   }
-  stopAvatarAnimation();
   appRoot.style.display = "none";
   canvas.style.display = "block";
-  stateVariables.interactions = [];
+  canvas.style.zIndex = "100"; // Force above everything else
+  
   stateVariables.gamePaused = false;
   stateVariables.gameOverShown = false;
   stateVariables.gameState = GameState.running;
-  initializeGame();
-  requestAnimationFrame(draw);
+
+  // Final check to ensure canvas is ready
+  adjustCanvasSize();
+
+  try {
+    initializeGame(stateVariables.gameQuestions);
+    requestAnimationFrame(draw);
+  } catch (err: any) {
+    console.error("Game initialization failed:", err);
+    appRoot.style.display = "block";
+    appRoot.innerHTML = `<div style="color:white; background:rgba(20,10,30,0.95); padding: 40px; text-align:center; position:fixed; inset:0; z-index:9999; display:flex; flex-direction:column; justify-content:center; align-items:center; font-family:sans-serif;">
+      <h2 style="color:#ff6b6b; margin-bottom:10px;">Game Critical Error</h2>
+      <p style="background:rgba(255,0,0,0.05); padding:15px; border-radius:8px; border:1px solid rgba(255,0,0,0.3); max-width:600px; text-align:left; font-family:monospace; margin:20px 0; overflow:auto; max-height:300px;">
+        <strong>Error:</strong> ${err.message}<br/><br/>
+        <span style="font-size:11px; opacity:0.6; white-space:pre-wrap;">${err.stack || "No stack trace available"}</span>
+      </p>
+      <button onclick="location.reload()" style="background:#007c9d; color:white; border:none; padding:12px 24px; border-radius:5px; cursor:pointer; font-weight:bold; font-size:16px;">Restart Application</button>
+    </div>`;
+  }
 }
 
 function openGameOverOverlay() {
@@ -790,80 +933,107 @@ function draw() {
     return;
   }
 
-  adjustCanvasSize();
-  stateVariables.ctx.imageSmoothingEnabled = false;
-
-  stateVariables.ctx.save();
-  const targetZoom = (stateVariables.isHoldingMeditationKey && stateVariables.meditationStart != null) ? 0.75 : 1.0;
-  stateVariables.meditationZoomLevel += (targetZoom - stateVariables.meditationZoomLevel) * 0.05;
-
-  const cx = stateVariables.windowWidth / 2;
-  const cy = stateVariables.windowHeight / 2;
-  stateVariables.ctx.translate(cx, cy);
-  stateVariables.ctx.scale(stateVariables.meditationZoomLevel, stateVariables.meditationZoomLevel);
-  stateVariables.ctx.translate(-cx, -cy);
-
-  stateVariables.bgImage.show();
-  drawClickIndicator();
-
-  stateVariables.npcs.forEach((npc) => npc.show());
-  stateVariables.clockPickups.forEach((clock) => clock.show());
-
-  stateVariables.player.show();
-  stateVariables.bgImage.showDepth();
-  stateVariables.lantern.showLuminosity();
-  stateVariables.lantern.changeLuminosity();
-
-  stateVariables.ctx.restore();
-
-  handleOtherControls();
-  handleMovementControls();
-
-  const nearbyNpcIndex = stateVariables.npcs.findIndex((npc) => npc.isPlayerNearby());
-  stateVariables.activeNpcIndex = nearbyNpcIndex;
-  if (nearbyNpcIndex === -1) {
-    stateVariables.dialogueSuppressedNpcIndex = -1;
-    stateVariables.dialogueDismissNpcIndex = -1;
-    stateVariables.dialogueForceCloseNpcIndex = -1;
-    stateVariables.dialogueThankYouNpcIndex = -1;
-    stateVariables.dialogueThankYouStartedMs = 0;
-    stateVariables.dialogueThankYouOptionIndex = -1;
-    stateVariables.dialogueThankYouPendingNpcIndex = -1;
-    stateVariables.dialogueThankYouPendingOptionIndex = -1;
-  }
-
-  stateVariables.clockPickups = stateVariables.clockPickups.filter((clock) => {
-    if (clock.isCollected()) {
-      stateVariables.endTimeMs += 5000;
-      return false;
-    }
-    return true;
-  });
-
-  const remainingMs = stateVariables.endTimeMs - Date.now();
-  const remainingSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
-
-  drawChannelledAnimation();
-  stateVariables.ui.renderTimer(remainingSeconds);
-  stateVariables.ui.renderStamina();
-  stateVariables.ui.renderScore();
-  stateVariables.ui.renderNpcHint();
-  stateVariables.ui.renderDialogue();
-  drawCursorImage();
-  stateVariables.mouseClicked = false;
-
-  if (remainingMs <= 0) {
-    stateVariables.gameState = GameState.finished;
-  }
-
-  if (stateVariables.gameState === GameState.finished) {
-    if (!stateVariables.gameOverShown) {
-      openGameOverOverlay();
-    }
+  // Safety check: ensure world objects are initialized before drawing
+  if (!stateVariables.bgImage || !stateVariables.bgImage.show || !stateVariables.player || !stateVariables.player.show) {
+    console.warn("Draw called before initialization finished, skipping frame.");
+    requestAnimationFrame(draw);
     return;
   }
 
-  requestAnimationFrame(draw);
+  try {
+    adjustCanvasSize();
+    stateVariables.ctx.imageSmoothingEnabled = false;
+
+    stateVariables.ctx.save();
+    const targetZoom = (stateVariables.isHoldingMeditationKey && stateVariables.meditationStart != null) ? 0.75 : 1.0;
+    stateVariables.meditationZoomLevel += (targetZoom - stateVariables.meditationZoomLevel) * 0.05;
+
+    const cx = stateVariables.windowWidth / 2;
+    const cy = stateVariables.windowHeight / 2;
+    stateVariables.ctx.translate(cx, cy);
+    stateVariables.ctx.scale(stateVariables.meditationZoomLevel, stateVariables.meditationZoomLevel);
+    stateVariables.ctx.translate(-cx, -cy);
+
+    stateVariables.bgImage.show();
+    
+    // Visual debug to prove draw loop is active (will draw a tiny white pixel in corner)
+    stateVariables.ctx.fillStyle = "white";
+    stateVariables.ctx.fillRect(0, 0, 2, 2);
+    drawClickIndicator();
+
+    stateVariables.npcs.forEach((npc) => npc.show());
+    stateVariables.clockPickups.forEach((clock) => clock.show());
+
+    stateVariables.player.show();
+    stateVariables.bgImage.showDepth();
+    stateVariables.lantern.showLuminosity();
+    stateVariables.lantern.changeLuminosity();
+
+    stateVariables.ctx.restore();
+
+    handleOtherControls();
+    handleMovementControls();
+
+    const nearbyNpcIndex = stateVariables.npcs.findIndex((npc) => npc.isPlayerNearby());
+    stateVariables.activeNpcIndex = nearbyNpcIndex;
+    if (nearbyNpcIndex === -1) {
+      stateVariables.dialogueSuppressedNpcIndex = -1;
+      stateVariables.dialogueDismissNpcIndex = -1;
+      stateVariables.dialogueForceCloseNpcIndex = -1;
+      stateVariables.dialogueThankYouNpcIndex = -1;
+      stateVariables.dialogueThankYouStartedMs = 0;
+      stateVariables.dialogueThankYouOptionIndex = -1;
+      stateVariables.dialogueThankYouPendingNpcIndex = -1;
+      stateVariables.dialogueThankYouPendingOptionIndex = -1;
+    }
+
+    stateVariables.clockPickups = stateVariables.clockPickups.filter((clock) => {
+      if (clock.isCollected()) {
+        stateVariables.endTimeMs += 5000;
+        return false;
+      }
+      return true;
+    });
+
+    const remainingMs = stateVariables.endTimeMs - Date.now();
+    const remainingSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+
+    drawChannelledAnimation();
+    stateVariables.ui.renderTimer(remainingSeconds);
+    stateVariables.ui.renderStamina();
+    stateVariables.ui.renderScore();
+    stateVariables.ui.renderNpcHint();
+    stateVariables.ui.renderDialogue();
+    drawCursorImage();
+    stateVariables.mouseClicked = false;
+
+    if (remainingMs <= 0) {
+      stateVariables.gameState = GameState.finished;
+      if (stateVariables.currentSessionId) {
+        GameApi.updateSessionStatus(stateVariables.currentSessionId, "COMPLETED").catch(
+          (err) => console.error("Failed to end session:", err)
+        );
+      }
+    }
+
+    if (stateVariables.gameState === GameState.finished) {
+      if (!stateVariables.gameOverShown) {
+        openGameOverOverlay();
+      }
+      return;
+    }
+
+    requestAnimationFrame(draw);
+  } catch (err: any) {
+    console.error("CRITICAL DRAW ERROR:", err);
+    stateVariables.gamePaused = true;
+    appRoot.style.display = "block";
+    appRoot.innerHTML = `<div style="color:white; background:rgba(0,0,0,0.85); padding: 40px; text-align:center; position:fixed; inset:0; z-index:9999;">
+      <h2>Game Error</h2>
+      <p style="color:#ff6b6b;">${err.message}</p>
+      <button onclick="location.reload()" class="primary-btn">Restart Game</button>
+    </div>`;
+  }
 }
 
 renderLoader();

@@ -6,6 +6,9 @@ export type NpcDialogue = {
   name: string;
   scenario: string;
   options: string[];
+  questionId?: string;
+  answerIds?: string[];
+  optionFeedbacks?: Array<string | null>;
 };
 
 export class NPC {

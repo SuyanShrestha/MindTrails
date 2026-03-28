@@ -37,6 +37,26 @@ export function upCounter() {
   stateVariables.assetsLoadCount++;
 }
 
+export function preloadImage(src: string): Promise<void> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve();
+    img.onerror = () => resolve();
+    img.src = src;
+  });
+}
+
+export async function preloadGameAssets(): Promise<void> {
+  // Best-effort preloading; failures should not block gameplay.
+  const assets = [
+    "assets/main-map.jpg",
+    "assets/ui/stamina.png",
+    "assets/cursor.png",
+  ];
+
+  await Promise.allSettled(assets.map((src) => preloadImage(src)));
+}
+
 export function loadCharacterImages(
   direction: string,
   no_of_frames: number,
@@ -92,7 +112,13 @@ function shuffleArray<T>(items: T[]) {
   return copy;
 }
 
-function createRandomHiddenCharacters(centerX: number, centerY: number) {
+type ApiGameQuestion = {
+  id?: string;
+  questionText?: string;
+  answers?: Array<{ id?: string; answerText?: string; feedback?: string | null }>;
+};
+
+function createRandomHiddenCharacters(centerX: number, centerY: number, questions: ApiGameQuestion[]) {
   const spawnOffsets = [
     { x: 260, y: -200 },
     { x: -340, y: -260 },
@@ -143,6 +169,34 @@ function createRandomHiddenCharacters(centerX: number, centerY: number) {
     },
   ];
 
+  const apiDialogues: NpcDialogue[] = (Array.isArray(questions) ? questions : [])
+    .filter((q) => q && typeof q === "object")
+    .map((q, idx) => {
+      const qText =
+        typeof q.questionText === "string" && q.questionText.trim().length > 0
+          ? q.questionText.trim()
+          : `Question ${idx + 1}`;
+      const answers = Array.isArray(q.answers) ? q.answers : [];
+      const options = answers
+        .map((a) => (typeof a?.answerText === "string" ? a.answerText.trim() : ""))
+        .filter(Boolean);
+      const answerIds = answers
+        .map((a) => (typeof a?.id === "string" ? a.id : ""))
+        .filter(Boolean);
+      const optionFeedbacks = answers.map((a) =>
+        typeof a?.feedback === "string" ? a.feedback.trim() : null
+      );
+
+      return {
+        name: dialoguePool[idx % dialoguePool.length]?.name ?? `Wanderer ${idx + 1}`,
+        scenario: qText,
+        options: options.length > 0 ? options : (dialoguePool[idx % dialoguePool.length]?.options ?? []),
+        questionId: typeof q.id === "string" ? q.id : undefined,
+        answerIds: answerIds.length > 0 ? answerIds : undefined,
+        optionFeedbacks: optionFeedbacks.length > 0 ? optionFeedbacks : undefined,
+      };
+    });
+
   const chosenSprites = shuffleArray(stateVariables.npcPortraits).slice(0, 4);
   const chosenOffsets = shuffleArray(spawnOffsets).slice(0, chosenSprites.length);
 
@@ -152,7 +206,7 @@ function createRandomHiddenCharacters(centerX: number, centerY: number) {
         centerX + chosenOffsets[index].x,
         centerY + chosenOffsets[index].y,
         sprite,
-        dialoguePool[index % dialoguePool.length]
+        apiDialogues[index] ?? dialoguePool[index % dialoguePool.length]
       )
   );
 }
@@ -167,7 +221,8 @@ function loadPlayerSprites(): DirectionalSprites {
   };
 }
 
-export function initializeGame() {
+// `questions` is optional for compatibility with the API-driven session flow.
+export function initializeGame(_questions?: any[]) {
   adjustCanvasSize();
 
   stateVariables.bgImage = new Maps("main-map.jpg");
@@ -205,7 +260,7 @@ export function initializeGame() {
 
   loadHiddenCharacterSpriteSheet((sprites) => {
     stateVariables.npcPortraits = sprites;
-    stateVariables.npcs = createRandomHiddenCharacters(centerX, centerY);
+    stateVariables.npcs = createRandomHiddenCharacters(centerX, centerY, stateVariables.gameQuestions as any);
   });
 
   // Timer set to 120s

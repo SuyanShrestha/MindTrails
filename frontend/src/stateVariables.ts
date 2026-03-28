@@ -65,8 +65,10 @@ export const stateVariables = {
   dialogueThankYouNpcIndex: -1,
   dialogueThankYouStartedMs: 0,
   dialogueThankYouOptionIndex: -1,
+  dialogueThankYouText: "",
   dialogueThankYouPendingNpcIndex: -1,
   dialogueThankYouPendingOptionIndex: -1,
+  dialogueThankYouPendingText: "",
   dialogueForceCloseNpcIndex: -1,
   dialoguePanelRect: {
     x: 0,
@@ -103,6 +105,9 @@ export const stateVariables = {
   gamePaused: false,
   gameOverShown: false,
   interactions: [] as NpcInteraction[],
+  currentSessionId: null as string | null,
+  gameQuestions: [] as any[],
+  sessionPrefetchPromise: null as Promise<any> | null,
   playerProfile: {
     name: "",
     age: "",
