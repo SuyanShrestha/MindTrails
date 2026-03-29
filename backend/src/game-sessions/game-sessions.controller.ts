@@ -12,6 +12,7 @@ import { AnswerGameQuestionDto } from "./dto/answer-game-question.dto";
 import {
   AnswerGameQuestionResponseDto,
   CreateGameSessionResponseDto,
+  EndGameSessionResponseDto,
   GetGameSessionResponseDto
 } from "./dto/game-session-response.dto";
 import { GameSessionsService } from "./game-sessions.service";
@@ -87,5 +88,24 @@ export class GameSessionsController {
       dto
     );
     return createResponse(payload, "Question response saved successfully");
+  }
+
+  @Post(":sessionId/end")
+  @ApiOperation({
+    summary:
+      "End a game session, create a pending progress report, and return the AI payload body"
+  })
+  @ApiParam({
+    name: "sessionId",
+    format: "uuid"
+  })
+  @ApiEnvelopeResponse({
+    description: "Game session ended successfully",
+    type: EndGameSessionResponseDto
+  })
+  @ApiStandardErrorResponses({ unauthorized: true })
+  async endSession(@CurrentUser() user: JwtUser, @Param("sessionId") sessionId: string) {
+    const payload = await this.gameSessionsService.endSession(user.sub, sessionId);
+    return createResponse(payload, "Game session ended successfully");
   }
 }

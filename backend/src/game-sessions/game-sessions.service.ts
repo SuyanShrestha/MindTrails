@@ -5,12 +5,14 @@ import {
 } from "@nestjs/common";
 import { Prisma, GameQuestion, GameQuestionAnswer, GameSession } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { ProgressReportsService } from "../progress-reports/progress-reports.service";
 import { QuestionGenerationService } from "../question-prefetch/question-generation.service";
 import { QuestionPrefetchService } from "../question-prefetch/question-prefetch.service";
 import { AnswerGameQuestionDto } from "./dto/answer-game-question.dto";
 import {
   AnswerGameQuestionResponseDto,
   CreateGameSessionResponseDto,
+  EndGameSessionResponseDto,
   GameQuestionDto,
   GameSessionSummaryDto,
   GetGameSessionResponseDto
@@ -33,10 +35,25 @@ type GameQuestionWithAnswers = GameQuestion & {
   >;
 };
 
+type SessionForAiPayload = GameSession & {
+  questions: Array<
+    GameQuestion & {
+      answers: GameQuestionAnswer[];
+      userResponse: {
+        id: string;
+        answeredAt: Date | null;
+        responseTimeMs: number | null;
+        selectedAnswer: GameQuestionAnswer | null;
+      } | null;
+    }
+  >;
+};
+
 @Injectable()
 export class GameSessionsService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly progressReportsService: ProgressReportsService,
     private readonly questionGenerationService: QuestionGenerationService,
     private readonly questionPrefetchService: QuestionPrefetchService
   ) {}
@@ -239,6 +256,97 @@ export class GameSessionsService {
     };
   }
 
+  async endSession(userId: string, sessionId: string): Promise<EndGameSessionResponseDto> {
+    const session = await this.prisma.gameSession.findFirst({
+      where: {
+        id: sessionId,
+        userId
+      }
+    });
+
+    if (!session) {
+      throw new NotFoundException("Game session not found");
+    }
+
+    const completedSession =
+      session.status === GameSessionStatusEnum.COMPLETED
+        ? session
+        : await this.prisma.gameSession.update({
+            where: { id: sessionId },
+            data: {
+              status: GameSessionStatusEnum.COMPLETED,
+              completedAt: session.completedAt ?? new Date(),
+              lastQuestionIndex: session.totalQuestions
+            }
+          });
+
+    const progressReport = await this.progressReportsService.createPendingReport(
+      userId,
+      sessionId
+    );
+
+    const [user, currentGameSession, recentGameSessions] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          age: true,
+          gender: true,
+          environment: true
+        }
+      }),
+      this.prisma.gameSession.findUnique({
+        where: { id: sessionId },
+        include: this.aiSessionInclude()
+      }),
+      this.prisma.gameSession.findMany({
+        where: {
+          userId,
+          id: {
+            not: sessionId
+          },
+          status: GameSessionStatusEnum.COMPLETED
+        },
+        orderBy: {
+          completedAt: "desc"
+        },
+        take: 2,
+        include: this.aiSessionInclude()
+      })
+    ]);
+
+    if (!user) {
+      throw new NotFoundException("User not found");
+    }
+
+    if (!currentGameSession) {
+      throw new NotFoundException("Game session not found after completion");
+    }
+
+    const aiPayload = {
+      userId: user.id,
+      progressReportId: progressReport.id,
+      currentGameSession: this.toAiSessionPayload(currentGameSession),
+      recentGameSessions: recentGameSessions.map((recentSession) =>
+        this.toAiSessionPayload(recentSession)
+      ),
+      userProfile: {
+        age: user.age,
+        gender: user.gender,
+        environment: user.environment
+      }
+    };
+
+    void this.progressReportsService.triggerGeneration(aiPayload);
+
+    return {
+      ended: true,
+      session: this.toGameSessionSummaryDto(completedSession),
+      progressReportId: progressReport.id,
+      progressReportStatus: progressReport.status
+    };
+  }
+
   private async getEligibleUserProfile(
     userId: string
   ): Promise<Omit<EligibleUserQuestionProfile, "id">> {
@@ -326,6 +434,53 @@ export class GameSessionsService {
       startedAt: session.startedAt,
       completedAt: session.completedAt,
       feedback: session.feedback
+    };
+  }
+
+  private aiSessionInclude() {
+    return {
+      questions: {
+        orderBy: { order: "asc" as const },
+        include: {
+          answers: {
+            orderBy: { createdAt: "asc" as const }
+          },
+          userResponse: {
+            include: {
+              selectedAnswer: true
+            }
+          }
+        }
+      }
+    };
+  }
+
+  private toAiSessionPayload(session: SessionForAiPayload) {
+    return {
+      gameSessionId: session.id,
+      status: session.status,
+      startedAt: session.startedAt,
+      completedAt: session.completedAt,
+      totalQuestions: session.totalQuestions,
+      feedback: session.feedback,
+      questions: session.questions
+        .filter((question) => question.userResponse?.selectedAnswer)
+        .map((question) => ({
+          questionId: question.id,
+          order: question.order,
+          outsider: question.outsider,
+          questionText: question.questionText,
+          explanation: question.explanation,
+          status: question.status,
+          selectedAnswer: {
+            answerId: question.userResponse!.selectedAnswer!.id,
+            answerText: question.userResponse!.selectedAnswer!.answerText,
+            category: question.userResponse!.selectedAnswer!.category,
+            feedback: question.userResponse!.selectedAnswer!.feedback
+          },
+          answeredAt: question.userResponse?.answeredAt ?? null,
+          responseTimeMs: question.userResponse?.responseTimeMs ?? null
+        }))
     };
   }
 

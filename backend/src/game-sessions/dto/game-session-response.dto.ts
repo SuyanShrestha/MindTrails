@@ -149,3 +149,22 @@ export class AnswerGameQuestionResponseDto {
   })
   nextQuestion!: GameQuestionDto | null;
 }
+
+export class EndGameSessionResponseDto {
+  @ApiProperty({ example: true })
+  ended!: boolean;
+
+  @ApiProperty({ type: GameSessionSummaryDto })
+  session!: GameSessionSummaryDto;
+
+  @ApiProperty({
+    format: "uuid",
+    example: "4d71d7e9-cfaa-4456-9f2f-e4b7f1a35341"
+  })
+  progressReportId!: string;
+
+  @ApiProperty({
+    example: "PENDING"
+  })
+  progressReportStatus!: string;
+}

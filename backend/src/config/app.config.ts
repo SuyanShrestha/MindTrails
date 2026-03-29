@@ -10,7 +10,7 @@ export default () => ({
     jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? "7d"
   },
   integrations: {
-    aiBackendUrl: process.env.AI_BACKEND_URL ?? "http://13.220.64.204"
+    aiBackendUrl: process.env.AI_BACKEND_URL ?? "http://100.54.109.124/"
   },
   redis: {
     host: process.env.REDIS_HOST ?? "127.0.0.1",

@@ -21,6 +21,12 @@ enum OnboardingResponseStatus {
   SUBMITTED
 }
 
+enum ProgressReportStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
 model User {
   id                 String              @id @default(uuid())
   name               String?
@@ -32,6 +38,7 @@ model User {
   environment        String?
   onboardingResponse OnboardingResponse?
   gameSessions       GameSession[]
+  progressReports    ProgressReport[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 }
@@ -91,6 +98,7 @@ model GameSession {
   totalQuestions    Int                @default(0)
   generationContext Json?
   feedback          String?
+  progressReport    ProgressReport?
   questions         GameQuestion[]
   responses         GameUserResponse[]
   createdAt         DateTime           @default(now())
@@ -148,4 +156,20 @@ model GameUserResponse {
 
   @@index([sessionId])
   @@index([selectedAnswerId])
+}
+
+model ProgressReport {
+  id            String               @id @default(uuid())
+  userId        String
+  user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameSessionId String               @unique
+  gameSession   GameSession          @relation(fields: [gameSessionId], references: [id], onDelete: Cascade)
+  status        ProgressReportStatus @default(PENDING)
+  report        String?
+  feedback      String?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status])
 }

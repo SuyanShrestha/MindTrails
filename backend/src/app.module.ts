@@ -7,6 +7,7 @@ import { GameSessionsModule } from "./game-sessions/game-sessions.module";
 import { HealthController } from "./health.controller";
 import { OnboardingModule } from "./onboarding/onboarding.module";
 import { PrismaModule } from "./prisma/prisma.module";
+import { ProgressReportsModule } from "./progress-reports/progress-reports.module";
 import { QuestionPrefetchModule } from "./question-prefetch/question-prefetch.module";
 import { UsersModule } from "./users/users.module";
 
@@ -23,6 +24,7 @@ import { UsersModule } from "./users/users.module";
     UsersModule,
     AuthModule,
     OnboardingModule,
+    ProgressReportsModule,
     GameSessionsModule
   ]
 })
