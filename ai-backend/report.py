@@ -3,6 +3,7 @@ from typing import Any, Dict, List
 
 from dotenv import load_dotenv
 from openai import OpenAI
+import requests
 
 load_dotenv()
 
@@ -213,8 +214,18 @@ Return JSON only with fields: analysis, feedback.
         "analysis": llm_payload.get("analysis", ""),
     }
 
-    return {
+    result = {
         "progressReportId": progress_report_id,
         "report": report,
         "feedback": llm_payload.get("feedback", ""),
     }
+
+    try:
+        response = requests.post(
+            "http://100.54.109.124/api/progress-reports/complete",
+            json=result,
+            timeout=60,)
+    except requests.RequestException:
+        pass
+
+    return result
