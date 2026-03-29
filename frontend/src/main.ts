@@ -1069,11 +1069,7 @@ function renderRegister() {
 
         // Start creating the game session immediately after registration (prefetch),
         // so the "Enter the world" step doesn't have to wait as long.
-        stateVariables.sessionPrefetchPromise = GameApi.createSession({
-          gender: stateVariables.playerProfile.gender || undefined,
-          age: stateVariables.playerProfile.age ? Number(stateVariables.playerProfile.age) : undefined,
-          environment: stateVariables.playerProfile.environment || undefined,
-        })
+        stateVariables.sessionPrefetchPromise = GameApi.createSession()
           .then((sessionResponse: any) => {
             if (sessionResponse?.success && sessionResponse?.data?.session?.id) {
               stateVariables.currentSessionId = sessionResponse.data.session.id;
@@ -1215,11 +1211,7 @@ function renderLogin() {
         // slide to hub
         slideTo(renderHub);
 
-        stateVariables.sessionPrefetchPromise = GameApi.createSession({
-          gender: stateVariables.playerProfile.gender || undefined,
-          age: stateVariables.playerProfile.age ? Number(stateVariables.playerProfile.age) : undefined,
-          environment: stateVariables.playerProfile.environment || undefined,
-        })
+        stateVariables.sessionPrefetchPromise = GameApi.createSession()
           .then((sessionResponse: any) => {
             if (sessionResponse?.success && sessionResponse?.data?.session?.id) {
               stateVariables.currentSessionId = sessionResponse.data.session.id;
@@ -1305,11 +1297,7 @@ function renderGameLoader() {
 
   const sessionPromise =
     stateVariables.sessionPrefetchPromise ??
-    GameApi.createSession({
-      gender: stateVariables.playerProfile.gender || undefined,
-      age: stateVariables.playerProfile.age ? Number(stateVariables.playerProfile.age) : undefined,
-      environment: stateVariables.playerProfile.environment || undefined,
-    });
+    GameApi.createSession();
   // Consume prefetched promise so we don't accidentally reuse a stale one later.
   stateVariables.sessionPrefetchPromise = null;
 
@@ -1676,10 +1664,9 @@ function resetGameState() {
 
 async function stopSessionBestEffort(status: "ABANDONED" | "COMPLETED") {
   if (!stateVariables.currentSessionId) return;
+  if (status !== "COMPLETED") return;
   const id = stateVariables.currentSessionId;
-  GameApi.updateSessionStatus(id, status).catch((err) =>
-    console.error("Failed to update session status:", err)
-  );
+  GameApi.endSession(id).catch((err) => console.error("Failed to end session:", err));
 }
 
 async function exitGameToHub() {
@@ -1761,6 +1748,12 @@ window.addEventListener("focus", () => {
 function openGameOverOverlay() {
   stateVariables.gamePaused = true;
   stateVariables.gameOverShown = true;
+
+  if (stateVariables.currentSessionId) {
+    GameApi.endSession(stateVariables.currentSessionId).catch((err) =>
+      console.error("Failed to end session:", err)
+    );
+  }
 
   showGameOverOverlay({
     appRoot,
@@ -1859,10 +1852,6 @@ function draw() {
   const remainingMs = stateVariables.endTimeMs - Date.now();
   if (remainingMs <= 0) {
     stateVariables.gameState = GameState.finished;
-    if (stateVariables.currentSessionId) {
-      GameApi.updateSessionStatus(stateVariables.currentSessionId, "COMPLETED")
-        .catch((err) => console.error("Failed to end session:", err));
-    }
   }
 
   if (stateVariables.gameState === GameState.finished) {

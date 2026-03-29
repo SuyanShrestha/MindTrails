@@ -851,13 +851,27 @@ export class Ui {
               responseTimeMs
             )
               .then((resp: any) => {
-                const feedback = resp?.data?.selectedAnswer?.feedback;
-                if (typeof feedback === "string" && feedback.trim().length > 0) {
+                const rawFeedback = resp?.data?.selectedAnswer?.feedback;
+                const feedback =
+                  typeof rawFeedback === "string"
+                    ? rawFeedback.trim()
+                    : rawFeedback && typeof rawFeedback === "object"
+                      ? (typeof (rawFeedback as any).message === "string"
+                          ? String((rawFeedback as any).message).trim()
+                          : (() => {
+                              try {
+                                return JSON.stringify(rawFeedback);
+                              } catch {
+                                return "";
+                              }
+                            })())
+                      : "";
+                if (feedback.length > 0) {
                   if (stateVariables.dialogueThankYouPendingNpcIndex === shownNpcIndex) {
-                    stateVariables.dialogueThankYouPendingText = feedback.trim();
+                    stateVariables.dialogueThankYouPendingText = feedback;
                   }
                   if (stateVariables.dialogueThankYouNpcIndex === shownNpcIndex) {
-                    stateVariables.dialogueThankYouText = feedback.trim();
+                    stateVariables.dialogueThankYouText = feedback;
                   }
                 }
               })

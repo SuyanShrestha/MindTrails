@@ -4,10 +4,9 @@ export const GameApi = {
   /**
    * Starts a new game session and retrieves AI-generated questions.
    */
-  async createSession(profile?: { gender?: string; age?: number; environment?: string }) {
+  async createSession() {
     return apiFetch("/game-sessions", {
       method: "POST",
-      body: profile ? JSON.stringify(profile) : undefined,
       // Game session creation can involve AI question generation on the backend.
       // Wait for the backend response rather than timing out client-side.
       timeoutMs: 0,
@@ -17,23 +16,30 @@ export const GameApi = {
   /**
    * Reports a user's response to a specific question in the session.
    */
-  async answerQuestion(sessionId: string, questionId: string, selectedAnswerId: string, responseTimeMs: number) {
+  async answerQuestion(
+    sessionId: string,
+    questionId: string,
+    selectedAnswerId: string,
+    responseTimeMs?: number
+  ) {
     return apiFetch(`/game-sessions/${sessionId}/questions/${questionId}/response`, {
       method: "POST",
       body: JSON.stringify({
         selectedAnswerId,
-        responseTimeMs,
+        ...(typeof responseTimeMs === "number" && Number.isFinite(responseTimeMs)
+          ? { responseTimeMs: Math.max(0, responseTimeMs) }
+          : {}),
       }),
     });
   },
 
   /**
-   * Updates the status of the session (e.g., to COMPLETED when time is up).
+   * Ends the session and triggers progress-report generation on the backend.
    */
-  async updateSessionStatus(sessionId: string, status: "IN_PROGRESS" | "COMPLETED" | "ABANDONED") {
-    return apiFetch(`/game-sessions/${sessionId}/status`, {
-      method: "PATCH",
-      body: JSON.stringify({ status }),
+  async endSession(sessionId: string) {
+    return apiFetch(`/game-sessions/${sessionId}/end`, {
+      method: "POST",
+      timeoutMs: 0,
     });
   },
 };

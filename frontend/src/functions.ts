@@ -112,8 +112,28 @@ function shuffleArray<T>(items: T[]) {
 type ApiGameQuestion = {
   id?: string;
   questionText?: string;
-  answers?: Array<{ id?: string; answerText?: string; feedback?: string | null }>;
+  answers?: Array<{ id?: string; answerText?: string; feedback?: unknown }>;
 };
+
+function coerceFeedbackText(value: unknown): string | null {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+  if (!value || typeof value !== "object") return null;
+  const obj = value as Record<string, unknown>;
+  const candidate =
+    (typeof obj.message === "string" && obj.message.trim().length > 0 ? obj.message : null) ??
+    (typeof obj.text === "string" && obj.text.trim().length > 0 ? obj.text : null) ??
+    (typeof obj.feedback === "string" && obj.feedback.trim().length > 0 ? obj.feedback : null);
+  if (candidate) return candidate.trim();
+  try {
+    const json = JSON.stringify(value);
+    return json && json !== "{}" ? json : null;
+  } catch {
+    return null;
+  }
+}
 
 function createRandomHiddenCharacters(centerX: number, centerY: number, questions: ApiGameQuestion[]) {
   const spawnOffsets = [
@@ -191,9 +211,7 @@ function createRandomHiddenCharacters(centerX: number, centerY: number, question
       const answerIds = answers
         .map((a) => (typeof a?.id === "string" ? a.id : ""))
         .filter(Boolean);
-      const optionFeedbacks = answers.map((a) =>
-        typeof a?.feedback === "string" ? a.feedback.trim() : null
-      );
+      const optionFeedbacks = answers.map((a) => coerceFeedbackText(a?.feedback));
 
       return {
         name: npcNamePool[idx % npcNamePool.length] ?? `Wanderer ${idx + 1}`,
