@@ -24,15 +24,10 @@ Behind the scenes, the backend and AI service work together to generate structur
 - Backend Swagger: `http://100.54.109.124/api/docs`
 - AI Swagger: `http://100.54.109.124/docs`
 
-## Screenshots / Demo
-![Hub / Dashboard](./frontend/screenshot-hub.png)
-![Gameplay](./frontend/screenshot-gameplay.png)
-![Your Progress](./frontend/screenshot-progress.png)
-
 ## Architecture
 ![Architecture Diagram](./docs/architecture.png)
 
-## AI Explained (Plain English)
+## AI Explained
 The AI works like a careful writer and reviewer behind the scenes. It does not chat with players directly. Instead:
 - **Before you play:** it drafts the NPC situations based on the profile you shared (age, gender, environment), so the prompts feel relevant.
 - **After you play:** it reviews your choices and summarizes patterns into a short progress report (burnout, stress, uncertainty) with supportive guidance.
@@ -187,3 +182,11 @@ npm run build
 - Frontend proxy setup: `frontend/vite.config.ts` + `frontend/.env`
 - Backend environment reference: `backend/.env.example`
 - If you’re demoing without external network access, make sure the AI backend is running locally and `AI_BACKEND_URL` points to it.
+## Screenshots
+![Land](./docs/land.png)
+![Space](./docs/space.png)
+![Home](./docs/home.png)
+![Talk](./docs/talk.png)
+![Control](./docs/control.png)
+![Game](./docs/game.png)
+![Progress](./docs/progress.png)
