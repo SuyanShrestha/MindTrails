@@ -548,9 +548,10 @@ export class Ui {
     const portraitBoxWidth = 140;
     const textStartX = panelX + portraitBoxWidth + 20;
     const textWidth = panelWidth - portraitBoxWidth - 40;
+    const panelHideDistanceY = panelHeight + 70;
     const slideOffsetY =
       (1 - this.easeOutCubic(stateVariables.dialoguePanelAnim)) *
-      (panelHeight + 40);
+      panelHideDistanceY;
     const mouseX = stateVariables.mouseX;
     const mouseY = stateVariables.mouseY - slideOffsetY;
     const clickXRaw = stateVariables.mouseClickX;
