@@ -6,10 +6,30 @@ Mindtrail is a gamified mental-health web experience built for the Nepal–US Ha
 - A **backend API** (NestJS + Prisma + PostgreSQL) for auth, game sessions, and progress reports.
 - An **AI service** (FastAPI) used to generate NPC questions and progress-report insights.
 
+Mindtrail turns a mental-health journey into an interactive game. After a user signs up and shares a small amount of profile context such as age, gender, and environment, the system generates personalized NPC scenarios that reflect situations the user is more likely to relate to, such as school pressure, workplace stress, relationship tension, uncertainty, burnout, or support-seeking moments. Instead of presenting a static questionnaire, the game lets the player move through a world, meet NPCs, respond to emotionally grounded prompts, and make choices in context.
+
+Behind the scenes, the backend and AI service work together to generate structured question sets, categorize answer choices for later analysis, and store completed sessions for reporting. Redis is used to prefetch the next question set so the gameplay experience feels faster, while PostgreSQL stores actual sessions, answers, and report history. After a session ends, the AI pipeline summarizes the player’s patterns into a progress report with burnout, stress, and uncertainty indicators plus short actionable feedback, so the application is not only a game but also a reflective tool for mental-health awareness.
+
+## What the Application Does
+- Creates a story-driven mental-health game instead of a traditional form-based assessment
+- Generates environment-aware NPC questions from user profile context such as age, gender, and environment
+- Lets users respond to NPC situations inside the game world and records their selected response categories
+- Prefetches upcoming question sets so new sessions feel quicker to start
+- Produces AI-assisted progress reports after gameplay, including analysis and supportive feedback
+- Gives users a dashboard view to revisit their progress over time
+
+## Live Demo
+- App: `http://100.54.109.124/TEAM-59/`
+- Backend Swagger: `http://100.54.109.124/api/docs`
+- AI Swagger: `http://100.54.109.124/docs`
+
 ## Screenshots / Demo
 ![Hub / Dashboard](./frontend/screenshot-hub.png)
 ![Gameplay](./frontend/screenshot-gameplay.png)
 ![Your Progress](./frontend/screenshot-progress.png)
+
+## Architecture
+![Architecture Diagram](./docs/architecture.png)
 
 ## Repo Structure
 - `frontend/` — Vite + TypeScript game UI
@@ -55,11 +75,15 @@ npm run start:dev
 Backend URLs:
 - API: `http://localhost:3001/api`
 - Swagger UI: `http://localhost:3001/api/docs`
-- Swagger JSON: `http://localhost:3001/api/docs-json`
 
 ---
 
 ### 2) AI Backend (FastAPI)
+FastAPI service that generates NPC questions and produces progress reports from game sessions.
+
+**Requirements**
+- Python 3.12+
+
 ```bash
 cd ai-backend
 python -m venv venv
@@ -73,6 +97,9 @@ Set your API key in `ai-backend/.env`:
 OPENAI_API_KEY=...
 ```
 
+Environment:
+- `OPENAI_API_KEY`: OpenAI API key
+
 Run the service:
 ```bash
 cd ai-backend
@@ -82,6 +109,7 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 AI URLs (default):
 - Health: `http://localhost:8000/health`
 - Docs: `http://localhost:8000/docs`
+- Report generation is served by the same AI backend and uses the same `OPENAI_API_KEY`
 
 Make sure `backend/.env` points `AI_BACKEND_URL` to this service, e.g.:
 ```env
