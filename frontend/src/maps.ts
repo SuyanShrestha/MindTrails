@@ -131,7 +131,10 @@ export class Maps {
       const pX = stateVariables.player.startPoint.x - x;
       const pY = stateVariables.player.startPoint.y - y;
 
-      if (pX < 0 || pX > mapWidth || pY < 0 || pY > mapHeight) {
+      const playerWidth = stateVariables.player.images_front[0]?.width || 0;
+      const playerHeight = stateVariables.player.images_front[0]?.height || 0;
+
+      if (pX < 0 || pX + playerWidth > mapWidth || pY < 0 || pY + playerHeight > mapHeight) {
         return true;
       }
 
