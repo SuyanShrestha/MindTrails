@@ -225,8 +225,8 @@ Return JSON only with fields: analysis, feedback.
             "http://100.54.109.124/api/progress-reports/complete",
             json=result,
             timeout=60,)
-        print(response.status)
-        print(response.text)
+        print('status',response.status)
+        print('message',response.text)
     except requests.RequestException:
         pass
 
