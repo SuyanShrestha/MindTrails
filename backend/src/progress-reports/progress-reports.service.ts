@@ -46,7 +46,7 @@ export class ProgressReportsService {
 
     try {
       await fetch(
-        `${baseUrl.replace(/\/$/, "")}/report`,
+        `${baseUrl.replace(/\/$/, "")}/report-generate`,
         {
           method: "POST",
           headers: {
