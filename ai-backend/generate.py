@@ -58,6 +58,8 @@ Generate **12 questions**:
   - External-attribution: attributing the cause mainly to external/situational forces.
   - Meaning-focused: reframing the situation by finding meaning, purpose, or growth.
 - For each question, randomly select 4 distinct categories from the list above and use them for the 4 answers.
+- For each question, exactly 1 of the 4 answers MUST be from the priority categories: Burnout, Stress, or Uncertainty but it must NOT always be the first option.
+- The remaining 3 answers must be from the other categories and must be distinct from each other and from the priority category.
 - Each answer must include its category title exactly (as the "category" field).
 - Output **JSON only**, no extra text.
 
@@ -94,7 +96,7 @@ Format example:
         response_format={"type": "json_object"}
     )
 
-    reply = response.choices[0].message.content
+    reply = response.choices[0].message.content or "{}"
 
     import json
     return json.loads(reply)
