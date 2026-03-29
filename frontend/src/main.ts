@@ -17,6 +17,7 @@ import { getAuthToken, setAuthToken, clearAuthToken } from "./api/client";
 import { AuthApi } from "./api/auth";
 import { UserApi } from "./api/user";
 import { GameApi } from "./api/game";
+import { logoutToLogin } from "./logout";
 
 type AvatarOption = {
   id: string;
@@ -255,9 +256,20 @@ function renderHub() {
 
   appRoot.innerHTML = `
     <div class="onboard onboard--popin">
-      <div class="sound">
-        <div>Sound</div>
-        <button class="switch" type="button" data-role="sound-switch" data-on="${stateVariables.soundEnabled ? "true" : "false"}"></button>
+      <div class="hub-top-right">
+        <div class="sound">
+          <div>Sound</div>
+          <button class="switch" type="button" data-role="sound-switch" data-on="${stateVariables.soundEnabled ? "true" : "false"}"></button>
+        </div>
+        <div class="hub-logout">
+          <button class="primary-btn hub-logout-btn" type="button" data-action="hub-logout" title="Logout" aria-label="Logout">
+            <svg class="hub-logout-icon" aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+              <path d="M10 17l1.41-1.41L8.83 13H20v-2H8.83l2.58-2.59L10 7l-7 7 7 7z" />
+              <path d="M4 4h8V2H4c-1.1 0-2 .9-2 2v6h2V4zm0 16h8v-2H4v-6H2v6c0 1.1.9 2 2 2z" />
+            </svg>
+            <span>LOGOUT</span>
+          </button>
+        </div>
       </div>
       <div class="onboard-bg"></div>
       <div class="onboard-content onboard-content--center">
@@ -346,6 +358,19 @@ function renderHub() {
     stateVariables.soundEnabled = !stateVariables.soundEnabled;
     window.localStorage.setItem(soundKey, stateVariables.soundEnabled ? "true" : "false");
     if (soundSwitch) soundSwitch.dataset.on = stateVariables.soundEnabled ? "true" : "false";
+  });
+
+  appRoot.querySelector('[data-action="hub-logout"]')?.addEventListener("click", () => {
+    void logoutToLogin({
+      canvas,
+      exitFullscreenBestEffort,
+      stopSessionBestEffort,
+      resetGameState,
+      navigateToLogin: () => {
+        clearAuthToken();
+        slideTo(renderLogin);
+      },
+    });
   });
 
   const hubAvatarImg = appRoot.querySelector('[data-role="hub-avatar-img"]') as HTMLImageElement | null;
