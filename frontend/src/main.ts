@@ -1462,7 +1462,7 @@ function draw() {
   const remainingMs = stateVariables.endTimeMs - Date.now();
   if (remainingMs <= 0) {
     stateVariables.gameState = GameState.finished;
-    if (!USE_DUMMY_QUESTIONS && stateVariables.currentSessionId) {
+    if (stateVariables.currentSessionId) {
       GameApi.updateSessionStatus(stateVariables.currentSessionId, "COMPLETED")
         .catch((err) => console.error("Failed to end session:", err));
     }
