@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Logger, Param, Post, UseGuards } from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiBody,
@@ -25,6 +25,8 @@ import { ProgressReportsService } from "./progress-reports.service";
 @ApiTags("Progress Reports")
 @Controller("progress-reports")
 export class ProgressReportsController {
+  private readonly logger = new Logger(ProgressReportsController.name);
+
   constructor(private readonly progressReportsService: ProgressReportsService) {}
 
   @Post("complete")
@@ -38,8 +40,37 @@ export class ProgressReportsController {
   })
   @ApiStandardErrorResponses()
   async completeProgressReport(@Body() dto: CompleteProgressReportDto) {
-    const payload = await this.progressReportsService.completeProgressReport(dto);
-    return createResponse(payload, "Progress report saved successfully");
+    this.logger.log(
+      JSON.stringify({
+        type: "progress-report-complete-request",
+        payload: dto
+      })
+    );
+
+    try {
+      const payload = await this.progressReportsService.completeProgressReport(dto);
+      const responsePayload = createResponse(payload, "Progress report saved successfully");
+
+      this.logger.log(
+        JSON.stringify({
+          type: "progress-report-complete-response",
+          payload: responsePayload
+        })
+      );
+
+      return responsePayload;
+    } catch (error) {
+      this.logger.error(
+        JSON.stringify({
+          type: "progress-report-complete-error",
+          payload: dto,
+          message: error instanceof Error ? error.message : "Unknown error"
+        }),
+        error instanceof Error ? error.stack : undefined
+      );
+
+      throw error;
+    }
   }
 
   @UseGuards(JwtAuthGuard)
