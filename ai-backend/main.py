@@ -19,7 +19,7 @@ class ReportPayload(BaseModel):
     recentGameSessions: List[Dict[str, Any]] = []
     userProfile: Dict[str, Any]
 
-@app.get("/")
+@app.get("/health")
 def health():
     return {"status": "ok", "message": "Hello Hackathon World","service":"Maybe you are looking for /docs"}
 
@@ -28,6 +28,6 @@ def npc_questions(data: PlayerData):
     return get_response(data.dict())
 
 
-@app.post("/report")
+@app.post("/report-generate")
 def report(data: ReportPayload):
     return get_report(data.dict())
