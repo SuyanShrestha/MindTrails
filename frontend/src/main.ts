@@ -101,6 +101,27 @@ function withTimeout<T>(promise: Promise<T>, ms: number) {
   });
 }
 
+function setupPasswordToggle(
+  input: HTMLInputElement | null,
+  button: HTMLButtonElement | null
+) {
+  if (!input || !button) return;
+
+  input.type = "password";
+
+  button.addEventListener("click", () => {
+    const isHidden = input.type === "password";
+    input.type = isHidden ? "text" : "password";
+
+    const eye = button.querySelector('[data-icon="eye"]') as HTMLElement | null;
+    const eyeOff = button.querySelector('[data-icon="eye-off"]') as HTMLElement | null;
+
+    if (eye) eye.style.display = isHidden ? "none" : "block";
+    if (eyeOff) eyeOff.style.display = isHidden ? "block" : "none";
+  });
+}
+
+
 type HubModalOptions = {
   id: string;
   childrenHtml: string;
@@ -134,10 +155,8 @@ function renderHubModal({
 
 function updateMousePosition(e: PointerEvent) {
   const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
-  stateVariables.mouseX = (e.clientX - rect.left) * scaleX;
-  stateVariables.mouseY = (e.clientY - rect.top) * scaleY;
+  stateVariables.mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
+  stateVariables.mouseY = (e.clientY - rect.top) * (canvas.height / rect.height);
 }
 
 canvas.addEventListener("pointermove", (e) => updateMousePosition(e));
@@ -148,6 +167,19 @@ canvas.addEventListener("pointerup", (e) => {
   stateVariables.mouseClickX = stateVariables.mouseX;
   stateVariables.mouseClickY = stateVariables.mouseY;
 });
+canvas.addEventListener("wheel", (e) => {
+  if (stateVariables.dialoguePanelRect.visible) {
+    const isOverPanel =
+      stateVariables.mouseX >= stateVariables.dialoguePanelRect.x &&
+      stateVariables.mouseX <= stateVariables.dialoguePanelRect.x + stateVariables.dialoguePanelRect.width &&
+      stateVariables.mouseY >= stateVariables.dialoguePanelRect.y &&
+      stateVariables.mouseY <= stateVariables.dialoguePanelRect.y + stateVariables.dialoguePanelRect.height;
+    if (isOverPanel) {
+      stateVariables.dialogueScrollY += e.deltaY * 0.5;
+      e.preventDefault();
+    }
+  }
+}, { passive: false });
 
 let avatarIndex = 0;
 stateVariables.selectedAvatarId = avatars[avatarIndex]?.id ?? "Ophelia";
@@ -473,7 +505,15 @@ function renderRegister() {
               </div>
               <div>
                 <label>Password *</label>
-                <input data-field="password" type="password" placeholder="Min 8 characters" />
+                <div class="password-wrapper" style="position: relative; display: flex; align-items: center;">
+                  <input data-field="password" type="password" placeholder="Min 8 characters" style="width: 100%; padding-right: 40px;" />
+                  <button type="button" data-action="toggle-password-register"
+                    style="position: absolute; right: 10px; background: none; border: none; cursor: pointer; padding: 0; color: inherit;">
+                    
+                    <svg data-icon="eye" style="display: block; width: 20px; height: 20px; fill: currentColor; opacity: 0.6;" viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+                    <svg data-icon="eye-off" style="display: none; width: 20px; height: 20px; fill: currentColor; opacity: 0.6;" viewBox="0 0 24 24"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/></svg>
+                  </button>
+                </div>
                 <div class="error" data-error="password" style="display:none;"></div>
               </div>
               <div>
@@ -519,8 +559,11 @@ function renderRegister() {
   const nameInput = appRoot.querySelector('[data-field="name"]') as HTMLInputElement | null;
   const emailInput = appRoot.querySelector('[data-field="email"]') as HTMLInputElement | null;
   const passwordInput = appRoot.querySelector('[data-field="password"]') as HTMLInputElement | null;
+  const togglePasswordBtn = appRoot.querySelector('[data-action="toggle-password-register"]') as HTMLButtonElement | null;
   const ageInput = appRoot.querySelector('[data-field="age"]') as HTMLInputElement | null;
   const continueButton = appRoot.querySelector('[data-action="register-continue"]') as HTMLButtonElement | null;
+
+  setupPasswordToggle(passwordInput, togglePasswordBtn);
 
   const setError = (key: string, message: string | null) => {
     const el = appRoot.querySelector(`[data-error="${key}"]`) as HTMLDivElement | null;
@@ -712,17 +755,7 @@ function renderLogin() {
   const passwordInput = appRoot.querySelector('[data-field="login-password"]') as HTMLInputElement | null;
   const loginBtn = appRoot.querySelector('[data-action="login-continue"]') as HTMLButtonElement | null;
 
-  togglePasswordBtn?.addEventListener("click", () => {
-    if (!passwordInput) return;
-    const isHidden = passwordInput.type === "password";
-    passwordInput.type = isHidden ? "text" : "password";
-
-    const eye = togglePasswordBtn.querySelector('[data-icon="eye"]') as HTMLElement | null;
-    const eyeOff = togglePasswordBtn.querySelector('[data-icon="eye-off"]') as HTMLElement | null;
-
-    if (eye) eye.style.display = isHidden ? "none" : "block";
-    if (eyeOff) eyeOff.style.display = isHidden ? "block" : "none";
-  });
+  setupPasswordToggle(passwordInput, togglePasswordBtn);
 
   const setError = (key: string, message: string | null) => {
     const el = appRoot.querySelector(`[data-error="${key}"]`) as HTMLDivElement | null;
@@ -1195,6 +1228,8 @@ function resetGameState() {
   stateVariables.endTimeMs = 0;
   stateVariables.timerPausedAtMs = null;
   stateVariables.interactions = [];
+  stateVariables.completedNpcKeys.clear();
+  stateVariables.pendingFeedbackNpcKey = null;
 
   stateVariables.npcs = [];
   stateVariables.clockPickups = [];
@@ -1330,11 +1365,10 @@ function openGameOverOverlay() {
   stateVariables.gamePaused = true;
   stateVariables.gameOverShown = true;
 
-  const score = stateVariables.player?.score ?? 0;
   showGameOverOverlay({
     appRoot,
     canvas,
-    score,
+    score: stateVariables.player.score,
     interactions: stateVariables.interactions,
     avatarId: stateVariables.selectedAvatarId,
     onReplay: () => {
@@ -1353,111 +1387,96 @@ function openGameOverOverlay() {
 }
 
 function draw() {
-  if (stateVariables.gamePaused) {
-    return;
-  }
+  if (stateVariables.gamePaused) return;
 
-  // Safety check: ensure world objects are initialized before drawing
   if (!stateVariables.bgImage || !stateVariables.bgImage.show || !stateVariables.player || !stateVariables.player.show) {
     console.warn("Draw called before initialization finished, skipping frame.");
     requestAnimationFrame(draw);
     return;
   }
 
-  try {
-    adjustCanvasSize();
-    stateVariables.ctx.imageSmoothingEnabled = false;
+  adjustCanvasSize();
+  const ctx = stateVariables.ctx;
 
-    stateVariables.ctx.save();
-    const targetZoom = (stateVariables.isHoldingMeditationKey && stateVariables.meditationStart != null) ? 0.75 : 1.0;
-    stateVariables.meditationZoomLevel += (targetZoom - stateVariables.meditationZoomLevel) * 0.05;
+  // Original clear
+  ctx.clearRect(0, 0, stateVariables.windowWidth, stateVariables.windowHeight);
 
-    const cx = stateVariables.windowWidth / 2;
-    const cy = stateVariables.windowHeight / 2;
-    stateVariables.ctx.translate(cx, cy);
-    stateVariables.ctx.scale(stateVariables.meditationZoomLevel, stateVariables.meditationZoomLevel);
-    stateVariables.ctx.translate(-cx, -cy);
+  // Meditation zoom was original, but and it was applied to the whole context
+  ctx.save();
+  const targetZoom = (stateVariables.isHoldingMeditationKey && stateVariables.meditationStart != null) ? 0.75 : 1.0;
+  stateVariables.meditationZoomLevel += (targetZoom - stateVariables.meditationZoomLevel) * 0.05;
 
-    stateVariables.bgImage.show();
-    
-    // Visual debug to prove draw loop is active (will draw a tiny white pixel in corner)
-    stateVariables.ctx.fillStyle = "white";
-    stateVariables.ctx.fillRect(0, 0, 2, 2);
-    drawClickIndicator();
+  const cx = stateVariables.windowWidth / 2;
+  const cy = stateVariables.windowHeight / 2;
+  ctx.translate(cx, cy);
+  ctx.scale(stateVariables.meditationZoomLevel, stateVariables.meditationZoomLevel);
+  ctx.translate(-cx, -cy);
 
-    stateVariables.npcs.forEach((npc) => npc.show());
-    stateVariables.clockPickups.forEach((clock) => clock.show());
+  stateVariables.bgImage.show();
 
-    stateVariables.player.show();
-    stateVariables.bgImage.showDepth();
-    stateVariables.lantern.showLuminosity();
-    stateVariables.lantern.changeLuminosity();
+  // Debug bit
+  ctx.fillStyle = "white";
+  ctx.fillRect(0, 0, 2, 2);
 
-    stateVariables.ctx.restore();
+  stateVariables.player.show();
+  stateVariables.lantern.show();
 
-    handleOtherControls();
-    handleMovementControls();
+  stateVariables.npcs.forEach((npc) => npc.show());
+  stateVariables.clockPickups.forEach((pickup) => pickup.show());
 
-    const nearbyNpcIndex = stateVariables.npcs.findIndex((npc) => npc.isPlayerNearby());
-    stateVariables.activeNpcIndex = nearbyNpcIndex;
-    if (nearbyNpcIndex === -1) {
-      stateVariables.dialogueSuppressedNpcIndex = -1;
-      stateVariables.dialogueDismissNpcIndex = -1;
-      stateVariables.dialogueForceCloseNpcIndex = -1;
-      stateVariables.dialogueThankYouNpcIndex = -1;
-      stateVariables.dialogueThankYouStartedMs = 0;
-      stateVariables.dialogueThankYouOptionIndex = -1;
-      stateVariables.dialogueThankYouPendingNpcIndex = -1;
-      stateVariables.dialogueThankYouPendingOptionIndex = -1;
-    }
+  stateVariables.lantern.showLuminosity();
 
-    stateVariables.clockPickups = stateVariables.clockPickups.filter((clock) => {
-      if (clock.isCollected()) {
-        stateVariables.endTimeMs += 5000;
-        return false;
-      }
-      return true;
-    });
+  ctx.restore(); // END MEDITATION ZOOM
 
-    const remainingMs = stateVariables.endTimeMs - Date.now();
-    const remainingSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+  // Render UI and Indicators in original physical space
+  stateVariables.ui.show();
+  drawChannelledAnimation();
+  drawClickIndicator();
+  drawCursorImage();
 
-    drawChannelledAnimation();
-    stateVariables.ui.renderTimer(remainingSeconds);
-    stateVariables.ui.renderStamina();
-    stateVariables.ui.renderScore();
-    stateVariables.ui.renderNpcHint();
-    stateVariables.ui.renderDialogue();
-    drawCursorImage();
-    stateVariables.mouseClicked = false;
+  handleOtherControls();
+  handleMovementControls();
 
-    if (remainingMs <= 0) {
-      stateVariables.gameState = GameState.finished;
-      if (stateVariables.currentSessionId) {
-        GameApi.updateSessionStatus(stateVariables.currentSessionId, "COMPLETED").catch(
-          (err) => console.error("Failed to end session:", err)
-        );
-      }
-    }
+  const nearbyNpcIndex = stateVariables.npcs.findIndex((npc) => npc.isPlayerNearby());
+  stateVariables.activeNpcIndex = nearbyNpcIndex;
 
-    if (stateVariables.gameState === GameState.finished) {
-      if (!stateVariables.gameOverShown) {
-        openGameOverOverlay();
-      }
-      return;
-    }
-
-    requestAnimationFrame(draw);
-  } catch (err: any) {
-    console.error("CRITICAL DRAW ERROR:", err);
-    stateVariables.gamePaused = true;
-    appRoot.style.display = "block";
-    appRoot.innerHTML = `<div style="color:white; background:rgba(0,0,0,0.85); padding: 40px; text-align:center; position:fixed; inset:0; z-index:9999;">
-      <h2>Game Error</h2>
-      <p style="color:#ff6b6b;">${err.message}</p>
-      <button onclick="location.reload()" class="primary-btn">Restart Game</button>
-    </div>`;
+  if (nearbyNpcIndex === -1) {
+    stateVariables.dialogueSuppressedNpcIndex = -1;
+    stateVariables.dialogueDismissNpcIndex = -1;
+    stateVariables.dialogueForceCloseNpcIndex = -1;
+    stateVariables.dialogueThankYouNpcIndex = -1;
+    stateVariables.dialogueThankYouStartedMs = 0;
+    stateVariables.dialogueThankYouOptionIndex = -1;
+    stateVariables.dialogueThankYouPendingNpcIndex = -1;
+    stateVariables.dialogueThankYouPendingOptionIndex = -1;
   }
+
+  stateVariables.clockPickups = stateVariables.clockPickups.filter((clock) => {
+    if (clock.isCollected()) {
+      stateVariables.endTimeMs += 5000;
+      return false;
+    }
+    return true;
+  });
+
+  const remainingMs = stateVariables.endTimeMs - Date.now();
+  if (remainingMs <= 0) {
+    stateVariables.gameState = GameState.finished;
+    if (stateVariables.currentSessionId) {
+      GameApi.updateSessionStatus(stateVariables.currentSessionId, "COMPLETED")
+        .catch((err) => console.error("Failed to end session:", err));
+    }
+  }
+
+  if (stateVariables.gameState === GameState.finished) {
+    if (!stateVariables.gameOverShown) {
+      openGameOverOverlay();
+    }
+    return;
+  }
+
+  stateVariables.mouseClicked = false;
+  requestAnimationFrame(draw);
 }
 
 renderLoader();

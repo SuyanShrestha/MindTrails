@@ -1,5 +1,6 @@
 import { GameApi } from "./api/game";
 import { stateVariables } from "./stateVariables";
+import { isNpcCompleted, markNpcCompleted, renderCompletedNpcEmojiBubble } from "./npcCompletion";
 
 export class Ui {
   private updateTypewriterText(fullText: string, npcIndex: number) {
@@ -17,6 +18,10 @@ export class Ui {
       stateVariables.dialogueSelectedOptionIndex = -1;
       stateVariables.dialogueSelectionStartedMs = 0;
       stateVariables.dialogueSelectionNpcIndex = -1;
+      stateVariables.dialoguePendingSubmitNpcIndex = -1;
+      stateVariables.dialoguePendingSubmitOptionIndex = -1;
+      stateVariables.dialoguePendingSubmitStartedMs = 0;
+      stateVariables.dialogueScrollY = 0;
     }
 
     if (stateVariables.dialogueVisibleText.length >= fullText.length) {
@@ -244,8 +249,16 @@ export class Ui {
     if (stateVariables.dialogueThankYouNpcIndex !== -1 && stateVariables.dialogueThankYouStartedMs > 0) {
       const thankNpc = stateVariables.npcs[stateVariables.dialogueThankYouNpcIndex];
       if (thankNpc) {
+        // Mark pending feedback as "shown" as soon as the bubble becomes active.
+        const thankKey = thankNpc.dialogue.questionId ?? thankNpc.dialogue.name;
+        if (stateVariables.pendingFeedbackNpcKey === thankKey) {
+          stateVariables.pendingFeedbackNpcKey = null;
+        }
         const elapsed = now - stateVariables.dialogueThankYouStartedMs;
-        const durationMs = 1300;
+        const inMs = 160;
+        const holdMs = 1200;
+        const outMs = 420;
+        const durationMs = inMs + holdMs + outMs;
         if (elapsed >= 0) {
           if (elapsed >= durationMs) {
             stateVariables.dialogueThankYouNpcIndex = -1;
@@ -253,46 +266,51 @@ export class Ui {
             stateVariables.dialogueThankYouOptionIndex = -1;
             stateVariables.dialogueThankYouText = "";
           } else {
-            const t = Math.max(0, Math.min(1, elapsed / durationMs));
-            const eased = this.easeOutCubic(t);
-            const alpha = 1 - t;
+            const alpha = (() => {
+              if (elapsed < inMs) return this.easeOutCubic(elapsed / inMs);
+              if (elapsed < inMs + holdMs) return 1;
+              return 1 - this.easeOutCubic((elapsed - inMs - holdMs) / outMs);
+            })();
+            const easedIn = this.easeOutCubic(Math.max(0, Math.min(1, elapsed / inMs)));
 
             const centerX = thankNpc.startPoint.x + thankNpc.currentWidth / 2;
             const baseY = thankNpc.startPoint.y - 14;
-            const slideDownY = 20 * eased;
+            const slideDownY = 16 * easedIn;
             const bubbleY = baseY + slideDownY;
 
             const text = stateVariables.dialogueThankYouText || "Thank you!";
             ctx.save();
             ctx.globalAlpha = alpha;
-            ctx.font = "600 15px Outfit";
+            ctx.font = '20px vtfont, "Courier New", monospace';
 
             const maxBubbleW = 280;
             const padX = 14;
             const padY = 10;
             const lineH = 18;
 
-            const words = text.split(/\s+/).filter(Boolean);
-            const lines: string[] = [];
-            let lineStr = "";
-            for (const word of words) {
-              const test = lineStr ? `${lineStr} ${word}` : word;
-              if (ctx.measureText(test).width > maxBubbleW - padX * 2 && lineStr) {
-                lines.push(lineStr);
-                lineStr = word;
-              } else {
-                lineStr = test;
+            const wrap = (input: string) => {
+              const words = input.split(/\s+/).filter(Boolean);
+              const lines: string[] = [];
+              let lineStr = "";
+              for (const word of words) {
+                const test = lineStr ? `${lineStr} ${word}` : word;
+                if (ctx.measureText(test).width > maxBubbleW - padX * 2 && lineStr) {
+                  lines.push(lineStr);
+                  lineStr = word;
+                } else {
+                  lineStr = test;
+                }
               }
-            }
-            if (lineStr) lines.push(lineStr);
+              if (lineStr) lines.push(lineStr);
+              return lines;
+            };
 
-            const lineWidths = lines.map((l) => ctx.measureText(l).width);
-            const contentW = Math.min(
-              maxBubbleW - padX * 2,
-              Math.max(0, ...lineWidths)
-            );
+            // Keep the bubble size stable by measuring the full text.
+            const fullLines = wrap(text);
+            const fullLineWidths = fullLines.map((l) => ctx.measureText(l).width);
+            const contentW = Math.min(maxBubbleW - padX * 2, Math.max(0, ...fullLineWidths));
             const bubbleW = Math.max(120, Math.ceil(contentW + padX * 2));
-            const bubbleH = Math.max(34, Math.ceil(lines.length * lineH + padY * 2));
+            const bubbleH = Math.max(34, Math.ceil(fullLines.length * lineH + padY * 2));
 
             const bubbleTopY = bubbleY - bubbleH;
             const bubbleX = centerX - bubbleW / 2;
@@ -319,20 +337,27 @@ export class Ui {
             ctx.closePath();
             ctx.fill();
 
-            // Text
+            // Text (typewriter-style reveal)
             ctx.fillStyle = "#09131a";
             ctx.textAlign = "center";
-            const textCenterY = bubbleTopY + bubbleH / 2 - ((lines.length - 1) * lineH) / 2;
-            lines.forEach((l, i) => {
-              ctx.fillText(l, centerX, textCenterY + i * lineH + 5);
+            ctx.textBaseline = "top";
+            const revealMs = Math.min(900, Math.max(320, text.length * 14));
+            const revealProgress = Math.max(0, Math.min(1, elapsed / revealMs));
+            const visibleChars = Math.max(0, Math.min(text.length, Math.floor(revealProgress * text.length)));
+            const visibleText = text.slice(0, visibleChars);
+            const visibleLines = wrap(visibleText);
+            const textTopY = bubbleTopY + padY + 3;
+            visibleLines.forEach((l, i) => {
+              ctx.fillText(l, centerX, textTopY + i * lineH);
             });
 
-            const pulseAlpha = Math.max(0, 0.32 - 0.32 * t);
+            const pulseT = Math.max(0, Math.min(1, elapsed / durationMs));
+            const pulseAlpha = Math.max(0, 0.32 - 0.32 * pulseT);
             ctx.globalAlpha = pulseAlpha;
             ctx.strokeStyle = "rgba(139, 211, 255, 0.75)";
             ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.arc(centerX, bubbleTopY + bubbleH / 2, 14 + 22 * eased, 0, Math.PI * 2);
+            ctx.arc(centerX, bubbleTopY + bubbleH / 2, 14 + 22 * easedIn, 0, Math.PI * 2);
             ctx.stroke();
 
             ctx.restore();
@@ -342,14 +367,35 @@ export class Ui {
       }
     }
 
+    // 2. If this NPC was already completed, show an emoji indicator instead of reopening dialogue.
+    if (stateVariables.activeNpcIndex !== -1) {
+      const npc = stateVariables.npcs[stateVariables.activeNpcIndex];
+      // While the feedback bubble is active after submitting an answer, avoid rendering the emoji indicator.
+      const feedbackBubbleActive =
+        stateVariables.dialogueThankYouNpcIndex !== -1 && stateVariables.dialogueThankYouStartedMs > 0;
+      const pendingFeedbackForThisNpc =
+        npc &&
+        stateVariables.pendingFeedbackNpcKey === (npc.dialogue.questionId ?? npc.dialogue.name);
+      if (!feedbackBubbleActive && !pendingFeedbackForThisNpc && npc && renderCompletedNpcEmojiBubble(npc, ctx, "😊")) return;
+    }
+
     // handle "Press closer to talk" hint
     if (stateVariables.activeNpcIndex !== -1) {
       const npc = stateVariables.npcs[stateVariables.activeNpcIndex];
       // Only show hint if player is near but NOT yet "at" the interaction threshold
       if (npc && !npc.isPlayerAt()) {
         ctx.save();
-        ctx.font = "18px Outfit";
+        ctx.font = '22px vtfont, "Courier New", monospace';
         ctx.textAlign = "center";
+
+        // Text Shadow for readability
+        ctx.fillStyle = "rgba(0,0,0,0.6)";
+        ctx.fillText(
+          "Press closer to talk...",
+          stateVariables.windowWidth / 2 + 1,
+          stateVariables.windowHeight - 228 + 1
+        );
+
         ctx.fillStyle = "rgba(255,255,255,0.95)";
         ctx.fillText(
           "Press closer to talk...",
@@ -369,6 +415,7 @@ export class Ui {
     const activeNpc = stateVariables.activeNpcIndex !== -1 ? stateVariables.npcs[stateVariables.activeNpcIndex] : null;
     const isAtNpc = activeNpc && activeNpc.isPlayerAt();
     const desiredNpcIndex = isAtNpc ? stateVariables.activeNpcIndex : -1;
+    const isCompletedNpc = !!(activeNpc && isAtNpc && isNpcCompleted(activeNpc));
 
     if (
       stateVariables.dialogueSuppressedNpcIndex !== -1 &&
@@ -391,6 +438,7 @@ export class Ui {
 
     const shouldShowDialogue =
       desiredNpcIndex !== -1 &&
+      !isCompletedNpc &&
       desiredNpcIndex !== stateVariables.dialogueSuppressedNpcIndex;
 
     if (shouldShowDialogue) {
@@ -473,6 +521,9 @@ export class Ui {
       stateVariables.dialogueSelectedOptionIndex = -1;
       stateVariables.dialogueSelectionStartedMs = 0;
       stateVariables.dialogueSelectionNpcIndex = -1;
+      stateVariables.dialoguePendingSubmitNpcIndex = -1;
+      stateVariables.dialoguePendingSubmitOptionIndex = -1;
+      stateVariables.dialoguePendingSubmitStartedMs = 0;
       stateVariables.dialoguePanelRect.visible = false;
       return;
     }
@@ -490,27 +541,82 @@ export class Ui {
     const fullScenario = npc.dialogue.scenario;
     const typedScenario = this.updateTypewriterText(fullScenario, shownNpcIndex);
 
-    const panelWidth = Math.min(stateVariables.windowWidth - 48, 760);
-    const panelHeight = 238;
+    const panelWidth = Math.min(stateVariables.windowWidth - 32, 920);
+    const panelHeight = 330;
     const panelX = (stateVariables.windowWidth - panelWidth) / 2;
-    const panelY = stateVariables.windowHeight - panelHeight - 28;
-    const portraitBoxWidth = 118;
-    const textStartX = panelX + portraitBoxWidth + 28;
-    const textWidth = panelWidth - portraitBoxWidth - 46;
+    const panelY = stateVariables.windowHeight - panelHeight - 32;
+    const portraitBoxWidth = 140;
+    const textStartX = panelX + portraitBoxWidth + 20;
+    const textWidth = panelWidth - portraitBoxWidth - 40;
+    const panelHideDistanceY = panelHeight + 70;
     const slideOffsetY =
       (1 - this.easeOutCubic(stateVariables.dialoguePanelAnim)) *
-      (panelHeight + 36);
+      panelHideDistanceY;
     const mouseX = stateVariables.mouseX;
     const mouseY = stateVariables.mouseY - slideOffsetY;
     const clickXRaw = stateVariables.mouseClickX;
     const clickYRaw = stateVariables.mouseClickY - slideOffsetY;
     ctx.save();
     ctx.translate(0, slideOffsetY);
-    ctx.fillStyle = "rgba(14, 18, 24, 0.95)";
+
+    // Main Retro Panel
+    // Shadow
+    ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+    ctx.fillRect(panelX + 6, panelY + 6, panelWidth, panelHeight);
+
+    // Deep Dark Background
+    ctx.fillStyle = "#0c0e12";
     ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.16)";
+
+    // Multilayered Retro Border
+    // Outer highlight border
+    ctx.strokeStyle = "#4a5a6a";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(panelX + 0.5, panelY + 0.5, panelWidth - 1, panelHeight - 1);
+
+    // Inner thicker frame
+    ctx.strokeStyle = "#2a3a4a";
     ctx.lineWidth = 4;
-    ctx.strokeRect(panelX, panelY, panelWidth, panelHeight);
+    ctx.strokeRect(panelX + 4, panelY + 4, panelWidth - 8, panelHeight - 8);
+
+    // Inner bright bezel
+    ctx.strokeStyle = "rgba(139, 211, 255, 0.15)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(panelX + 8.5, panelY + 8.5, panelWidth - 17, panelHeight - 17);
+
+    // Corner Accents (L-shapes)
+    ctx.strokeStyle = "#8bd3ff";
+    ctx.lineWidth = 2;
+    const cs = 14; // corner size
+    const co = 8; // corner offset
+
+    // Top-left
+    ctx.beginPath();
+    ctx.moveTo(panelX + co + cs, panelY + co);
+    ctx.lineTo(panelX + co, panelY + co);
+    ctx.lineTo(panelX + co, panelY + co + cs);
+    ctx.stroke();
+
+    // Top-right
+    ctx.beginPath();
+    ctx.moveTo(panelX + panelWidth - co - cs, panelY + co);
+    ctx.lineTo(panelX + panelWidth - co, panelY + co);
+    ctx.lineTo(panelX + panelWidth - co, panelY + co + cs);
+    ctx.stroke();
+
+    // Bottom-left
+    ctx.beginPath();
+    ctx.moveTo(panelX + co + cs, panelY + panelHeight - co);
+    ctx.lineTo(panelX + co, panelY + panelHeight - co);
+    ctx.lineTo(panelX + co, panelY + panelHeight - co - cs);
+    ctx.stroke();
+
+    // Bottom-right
+    ctx.beginPath();
+    ctx.moveTo(panelX + panelWidth - co - cs, panelY + panelHeight - co);
+    ctx.lineTo(panelX + panelWidth - co, panelY + panelHeight - co);
+    ctx.lineTo(panelX + panelWidth - co, panelY + panelHeight - co - cs);
+    ctx.stroke();
 
     stateVariables.dialoguePanelRect = {
       x: panelX,
@@ -520,161 +626,222 @@ export class Ui {
       visible: stateVariables.dialoguePanelAnim > 0,
     };
 
-    ctx.fillStyle = "rgba(255,255,255,0.08)";
-    ctx.fillRect(panelX + 16, panelY + 16, portraitBoxWidth - 20, 116);
+    // Portrait Frame
+    const portX = panelX + 22;
+    const portY = panelY + 22;
+    const portW = 100;
+    const portH = 126;
+
+    ctx.fillStyle = "rgba(255, 255, 255, 0.06)";
+    ctx.fillRect(portX, portY, portW, portH);
+    ctx.strokeStyle = "rgba(139, 211, 255, 0.25)";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(portX + 1, portY + 1, portW - 2, portH - 2);
 
     ctx.save();
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(npc.sprites[0], panelX + 24, panelY + 18, 82, 108);
+    // Center portrait in frame
+    const imgObj = npc.sprites[0];
+    const targetImgW = 86;
+    const targetImgH = 112;
+    ctx.drawImage(
+      imgObj,
+      portX + (portW - targetImgW) / 2,
+      portY + (portH - targetImgH) / 2,
+      targetImgW,
+      targetImgH
+    );
     ctx.restore();
 
-    const nameText = npc.dialogue.name ?? "";
-    const bannerX = panelX + 18;
-    const bannerY = panelY - 18;
-    const bannerH = 32;
-    const bannerPaddingX = 14;
-    const bannerMinW = 164;
-    const bannerMaxW = Math.max(bannerMinW, panelWidth - 36);
+    // name plate (Floating Retro Style)
+    ctx.save();
+    ctx.font = '26px vtfont, "Courier New", monospace';
+    if ('letterSpacing' in ctx) (ctx as any).letterSpacing = '1px';
 
-    let fontSize = 18;
-    const maxTextWidth = bannerMaxW - bannerPaddingX * 2;
-    ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
+    const rawName = (npc.dialogue.name || "Wanderer").toUpperCase();
+    const maxPlateW = panelWidth * 0.5;
+    const paddingX = 40;
+    let displayName = rawName;
+    let textW = ctx.measureText(displayName).width;
 
-    const measureWithSize = (size: number) => {
-      ctx.font = `bold ${size}px Outfit`;
-      return ctx.measureText(nameText).width;
-    };
-
-    while (fontSize > 11 && measureWithSize(fontSize) > maxTextWidth) {
-      fontSize -= 1;
-    }
-
-    // If it's still too long, truncate with ellipsis.
-    ctx.font = `bold ${fontSize}px Outfit`;
-    let displayName = nameText;
-    if (ctx.measureText(displayName).width > maxTextWidth) {
-      const ellipsis = "…";
-      const available = Math.max(0, maxTextWidth - ctx.measureText(ellipsis).width);
-      let lo = 0;
-      let hi = displayName.length;
-      while (lo < hi) {
-        const mid = Math.ceil((lo + hi) / 2);
-        const slice = displayName.slice(0, mid);
-        if (ctx.measureText(slice).width <= available) lo = mid;
-        else hi = mid - 1;
+    if (textW > maxPlateW - paddingX) {
+      // Truncate if it exceeds 50% of panel width
+      while (displayName.length > 0 && ctx.measureText(displayName + "...").width > maxPlateW - paddingX) {
+        displayName = displayName.slice(0, -1);
       }
-      displayName = `${displayName.slice(0, lo)}${ellipsis}`;
+      displayName += "...";
+      textW = ctx.measureText(displayName).width;
     }
 
-    const measured = ctx.measureText(displayName).width;
-    const bannerW = Math.min(bannerMaxW, Math.max(bannerMinW, measured + bannerPaddingX * 2));
+    const nameW = Math.max(140, textW + paddingX);
+    const nameX = panelX + 20;
+    const nameY = panelY - 14;
+    const nameH = 42;
 
-    ctx.fillStyle = "#8bd3ff";
-    ctx.fillRect(bannerX, bannerY, bannerW, bannerH);
-    ctx.fillStyle = "#09131a";
-    ctx.fillText(displayName, bannerX + bannerPaddingX, bannerY + bannerH / 2);
-    ctx.textBaseline = "alphabetic";
+    // Plate Shadow
+    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+    ctx.fillRect(nameX + 4, nameY + 4, nameW, nameH);
 
-    ctx.fillStyle = "white";
+    // Plate Box
+    ctx.fillStyle = "#1a3a5a";
+    ctx.fillRect(nameX, nameY, nameW, nameH);
+    ctx.strokeStyle = "#8bd3ff";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(nameX + 1, nameY + 1, nameW - 2, nameH - 2);
+
+    ctx.fillStyle = "#fff";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(displayName, nameX + nameW / 2, nameY + nameH / 2 + 2);
+    ctx.restore();
+
+    // Calculate Content Height
+    ctx.save();
+    ctx.font = '24px vtfont, "Courier New", monospace';
+    if ('letterSpacing' in ctx) (ctx as any).letterSpacing = '0.5px';
+
+    const scenarioHeight = this.measureWrappedText(fullScenario, textWidth, 32, ctx);
+    const optionsGap = 20;
+    const optionH = 38;
+    const optionP = 10;
+    const typingComplete = typedScenario.length >= fullScenario.length;
+    const canShowOptions = typingComplete && now >= stateVariables.dialogueOptionsRevealAtMs;
+    const totalOptionsHeight = canShowOptions ? npc.dialogue.options.length * (optionH + optionP) : 0;
+    const totalContentHeight = scenarioHeight + (canShowOptions ? optionsGap + totalOptionsHeight : 45) + 10;
+    const clipH = panelHeight - 48;
+    const clipY = panelY + 24;
+
+    // Bounds for scrolling
+    const maxScroll = Math.max(0, totalContentHeight - clipH);
+    stateVariables.dialogueScrollY = Math.max(0, Math.min(maxScroll, stateVariables.dialogueScrollY));
+
+    ctx.save();
+    // Use a Clip path for the text area
+    ctx.beginPath();
+    ctx.rect(textStartX - 5, clipY, textWidth + 10, clipH);
+    ctx.clip();
+
+    ctx.translate(0, -stateVariables.dialogueScrollY);
+
+    // Dialogue Text
+    ctx.fillStyle = "#e8eff5";
     ctx.textAlign = "left";
-    ctx.font = "16px Outfit";
+    ctx.textBaseline = "top";
+    ctx.font = '24px vtfont, "Courier New", monospace';
     const scenarioEndY = this.drawWrappedText(
       typedScenario,
       textStartX,
-      panelY + 38,
+      panelY + 36,
       textWidth,
-      24,
+      32,
       ctx
     );
 
-    const typingComplete = typedScenario.length >= fullScenario.length;
     if (typingComplete && stateVariables.dialogueOptionsRevealAtMs === 0) {
       stateVariables.dialogueOptionsRevealAtMs = now + 160;
     }
 
-    const canShowOptions =
-      typingComplete && now >= stateVariables.dialogueOptionsRevealAtMs;
-
     if (!canShowOptions) {
-      ctx.fillStyle = "rgba(255,255,255,0.55)";
-      ctx.font = "13px Outfit";
-      ctx.fillText("...", textStartX, Math.min(panelY + panelHeight - 10, scenarioEndY + 6));
+      if (Math.floor(now / 500) % 2 === 0) {
+        ctx.fillStyle = "#8bd3ff";
+        ctx.font = '22px vtfont';
+        // Simplified cursor position for robustness while typing
+        ctx.fillText("_", textStartX, scenarioEndY + 32);
+      }
     } else {
-      const optionHeight = 30;
-      const optionPadding = 8;
-      const optionsStartY = Math.max(panelY + 90, scenarioEndY + 60);
+      const optionsStartY = Math.max(panelY + 95, scenarioEndY + 35);
       const optionX = textStartX;
-      const optionWidth = panelX + panelWidth - 18 - optionX;
+      const optionWidth = panelWidth - portraitBoxWidth - 50; // Narrower to fit scrollbar
+
+      const isSubmitting =
+        stateVariables.dialoguePendingSubmitNpcIndex === shownNpcIndex &&
+        stateVariables.dialoguePendingSubmitStartedMs > 0;
 
       stateVariables.dialogueHoveredOptionIndex = -1;
-      const isClickPending = stateVariables.mouseClicked;
+      const isClickPending = !isSubmitting && stateVariables.mouseClicked;
       const clickX = clickXRaw;
-      const clickY = clickYRaw;
+      const clickY = clickYRaw + stateVariables.dialogueScrollY; // Offset click by scroll
 
-      ctx.font = "14px Outfit";
+      ctx.font = '22px vtfont, "Courier New", monospace';
+      // Render options immediately (no reveal animation). Only the "answer chosen" tick animates.
+      const optionRevealMs = 1;
+      const optionStaggerMs = 0;
       npc.dialogue.options.forEach((option, index) => {
-        const optionY = optionsStartY + index * (optionHeight + optionPadding);
+        const optionY = optionsStartY + index * (optionH + optionP);
         const rectX = optionX;
-        const rectY = optionY - optionHeight + 6;
+        const appearStartMs = stateVariables.dialogueOptionsRevealAtMs + index * optionStaggerMs;
+        const appearProgress = Math.max(0, Math.min(1, (now - appearStartMs) / optionRevealMs));
+        const appearEase = this.easeOutCubic(appearProgress);
+        if (appearEase <= 0) return;
+        const rectY = optionY + (1 - appearEase) * 10;
 
         const isHovered =
           mouseX >= rectX &&
           mouseX <= rectX + optionWidth &&
-          mouseY >= rectY &&
-          mouseY <= rectY + optionHeight;
+          (mouseY + stateVariables.dialogueScrollY) >= rectY &&
+          (mouseY + stateVariables.dialogueScrollY) <= rectY + optionH;
 
-        if (isHovered) stateVariables.dialogueHoveredOptionIndex = index;
+        if (appearEase > 0.4 && isHovered) stateVariables.dialogueHoveredOptionIndex = index;
 
         const isSelected =
           stateVariables.dialogueSelectionNpcIndex === shownNpcIndex &&
           stateVariables.dialogueSelectedOptionIndex === index;
 
-        ctx.fillStyle = isHovered
-          ? "rgba(139, 211, 255, 0.18)"
-          : "rgba(139, 211, 255, 0.10)";
-        ctx.fillRect(rectX, rectY, optionWidth, optionHeight);
+        ctx.save();
+        ctx.globalAlpha = appearEase;
 
-        ctx.strokeStyle = isSelected
-          ? "rgba(139, 211, 255, 0.65)"
-          : "rgba(139, 211, 255, 0.22)";
-        ctx.lineWidth = 1;
-        ctx.strokeRect(rectX, rectY, optionWidth, optionHeight);
+        // Option Background
+        if (isHovered) {
+          ctx.fillStyle = "rgba(139, 211, 255, 0.15)";
+          ctx.fillRect(rectX, rectY, optionWidth, optionH);
+          ctx.strokeStyle = "rgba(139, 211, 255, 0.5)";
+          ctx.lineWidth = 1;
+          ctx.strokeRect(rectX + 0.5, rectY + 0.5, optionWidth - 1, optionH - 1);
+        } else {
+          ctx.fillStyle = "rgba(255, 255, 255, 0.04)";
+          ctx.fillRect(rectX, rectY, optionWidth, optionH);
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
+          ctx.lineWidth = 1;
+          ctx.strokeRect(rectX + 0.5, rectY + 0.5, optionWidth - 1, optionH - 1);
+        }
 
-        ctx.fillStyle = "rgba(255,255,255,0.92)";
-        this.drawWrappedText(
-          `${index + 1}. ${option}`,
-          rectX + 12,
-          optionY,
-          optionWidth - 44,
-          18,
-          ctx
+        if (isSelected) {
+          ctx.strokeStyle = "#8bd3ff";
+          ctx.lineWidth = 2;
+          ctx.strokeRect(rectX + 1, rectY + 1, optionWidth - 2, optionH - 2);
+        }
+
+        // Option Text
+        ctx.fillStyle = isHovered ? "#fff" : "rgba(255, 255, 255, 0.85)";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+
+        const arrow = isHovered ? "> " : "  ";
+        ctx.fillText(
+          `${arrow}${index + 1}. ${option}`,
+          rectX + 16,
+          rectY + optionH / 2 + 2
         );
 
         if (isSelected) {
           const progress = Math.min(1, (now - stateVariables.dialogueSelectionStartedMs) / 220);
-          this.drawAnimatedTick(rectX + optionWidth - 20, rectY + optionHeight / 2, progress, ctx);
+          this.drawAnimatedTick(rectX + optionWidth - 24, rectY + optionH / 2, progress, ctx);
         }
+        ctx.restore();
       });
 
-      if (isClickPending) {
-        const clickedIndex = npc.dialogue.options.findIndex((_, index) => {
-          const optionY = optionsStartY + index * (optionHeight + optionPadding);
-          const rectX = optionX;
-          const rectY = optionY - optionHeight + 6;
-          return (
-            clickX >= rectX &&
-            clickX <= rectX + optionWidth &&
-            clickY >= rectY &&
-            clickY <= rectY + optionHeight
-          );
-        });
-
-        if (clickedIndex !== -1) {
+      // If an answer was clicked, keep the panel open briefly so the tick animation is visible,
+      // then perform the actual submit/close actions.
+      if (isSubmitting) {
+        const selectionAnimMs = 220;
+        if (now - stateVariables.dialoguePendingSubmitStartedMs >= selectionAnimMs) {
+          const clickedIndex = stateVariables.dialoguePendingSubmitOptionIndex;
           const chosenText = npc.dialogue.options[clickedIndex] ?? "";
           const questionId = npc.dialogue.questionId;
           const answerId = npc.dialogue.answerIds?.[clickedIndex];
           const responseTimeMs = Math.max(0, now - stateVariables.dialogueOptionsRevealAtMs);
+          // Hide the "completed" emoji until the feedback bubble has actually shown at least once.
+          stateVariables.pendingFeedbackNpcKey = npc.dialogue.questionId ?? npc.dialogue.name;
 
           if (stateVariables.currentSessionId && questionId && answerId) {
             GameApi.answerQuestion(
@@ -696,17 +863,16 @@ export class Ui {
               })
               .catch((err) => console.error("Failed to report answer:", err));
           }
+
           stateVariables.interactions.push({
             npcName: npc.dialogue.name,
             optionIndex: clickedIndex,
             optionText: chosenText,
             timeMs: now,
           });
+          markNpcCompleted(npc);
           stateVariables.player.score += 1;
 
-          stateVariables.dialogueSelectedOptionIndex = clickedIndex;
-          stateVariables.dialogueSelectionStartedMs = now;
-          stateVariables.dialogueSelectionNpcIndex = shownNpcIndex;
           stateVariables.dialogueThankYouPendingNpcIndex = shownNpcIndex;
           stateVariables.dialogueThankYouPendingOptionIndex = clickedIndex;
           stateVariables.dialogueThankYouPendingText =
@@ -714,16 +880,69 @@ export class Ui {
           stateVariables.dialogueDismissNpcIndex = shownNpcIndex;
           stateVariables.dialogueForceCloseNpcIndex = shownNpcIndex;
           stateVariables.dialoguePanelTarget = 0;
+
+          stateVariables.dialoguePendingSubmitNpcIndex = -1;
+          stateVariables.dialoguePendingSubmitOptionIndex = -1;
+          stateVariables.dialoguePendingSubmitStartedMs = 0;
+        }
+      }
+
+      if (isClickPending) {
+        const clickedIndex = npc.dialogue.options.findIndex((_, index) => {
+          const optionY = optionsStartY + index * (optionH + optionP);
+          const rectX = optionX;
+          const appearStartMs = stateVariables.dialogueOptionsRevealAtMs + index * optionStaggerMs;
+          const appearProgress = Math.max(0, Math.min(1, (now - appearStartMs) / optionRevealMs));
+          if (appearProgress < 0.001) return false;
+          const rectY = optionY;
+          return (
+            clickX >= rectX &&
+            clickX <= rectX + optionWidth &&
+            clickY >= rectY &&
+            clickY <= rectY + optionH
+          );
+        });
+
+        if (clickedIndex !== -1) {
+          stateVariables.dialogueSelectedOptionIndex = clickedIndex;
+          stateVariables.dialogueSelectionStartedMs = now;
+          stateVariables.dialogueSelectionNpcIndex = shownNpcIndex;
+          stateVariables.dialoguePendingSubmitNpcIndex = shownNpcIndex;
+          stateVariables.dialoguePendingSubmitOptionIndex = clickedIndex;
+          stateVariables.dialoguePendingSubmitStartedMs = now;
         }
 
         stateVariables.mouseClicked = false;
       }
     }
+    ctx.restore();
 
-    ctx.fillStyle = "rgba(255,255,255,0.65)";
-    ctx.font = "12px Outfit";
+    // Scrollbar (Retro themed)
+    if (totalContentHeight > clipH) {
+      const sbW = 6;
+      const sbX = panelX + panelWidth - 20;
+      const sbY = clipY;
+      const sbH = clipH;
+
+      // Track
+      ctx.fillStyle = "rgba(255, 255, 255, 0.04)";
+      ctx.fillRect(sbX, sbY, sbW, sbH);
+
+      // Thumb
+      const thumbH = Math.max(30, (clipH / totalContentHeight) * clipH);
+      const thumbY = sbY + (stateVariables.dialogueScrollY / maxScroll) * (sbH - thumbH);
+
+      ctx.fillStyle = "#4a5a6a";
+      ctx.fillRect(sbX, thumbY, sbW, thumbH);
+      ctx.fillStyle = "#8bd3ff";
+      ctx.fillRect(sbX + 1, thumbY + 1, sbW - 2, thumbH - 2);
+    }
+
+    ctx.fillStyle = "rgba(139, 211, 255, 0.4)";
+    ctx.font = '14px vtfont';
     ctx.textAlign = "right";
-    ctx.fillText("Nearby conversation", panelX + panelWidth - 18, panelY + panelHeight - 16);
+    ctx.textBaseline = "bottom";
+    ctx.fillText("NEARBY CONVERSATION", panelX + panelWidth - 20, panelY + panelHeight - 16);
     ctx.restore();
   }
 
@@ -758,13 +977,62 @@ export class Ui {
   }
 
   renderGameOver(ctx: CanvasRenderingContext2D = stateVariables.ctx) {
-    ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+    ctx.save();
+    ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
     ctx.fillRect(0, 0, stateVariables.windowWidth, stateVariables.windowHeight);
-    ctx.font = "48px Outfit";
-    ctx.fillStyle = "white";
+
+    // Title Shadow
+    ctx.shadowColor = "rgba(0, 0, 0, 0.8)";
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetY = 4;
+
+    ctx.font = '48px "Press Start 2P", monospace';
+    ctx.fillStyle = "#FFC822"; // Gold retro color
     ctx.textAlign = "center";
-    ctx.fillText("Time's up!", stateVariables.windowWidth / 2, stateVariables.windowHeight / 2 - 20);
-    ctx.font = "32px Outfit";
-    ctx.fillText(`Final Score: ${stateVariables.player.score}`, stateVariables.windowWidth / 2, stateVariables.windowHeight / 2 + 30);
+    ctx.fillText("TIME'S UP!", stateVariables.windowWidth / 2, stateVariables.windowHeight / 2 - 40);
+
+    ctx.font = '28px vtfont, "Courier New", monospace';
+    ctx.fillStyle = "white";
+    ctx.fillText(`Final Score: ${stateVariables.player.score}`, stateVariables.windowWidth / 2, stateVariables.windowHeight / 2 + 20);
+
+    ctx.font = '20px vtfont, "Courier New", monospace';
+    ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+    ctx.fillText("Check your results in the dashboard", stateVariables.windowWidth / 2, stateVariables.windowHeight / 2 + 60);
+
+    ctx.restore();
+  }
+
+  show(ctx: CanvasRenderingContext2D = stateVariables.ctx) {
+    const remainingMs = stateVariables.endTimeMs - Date.now();
+    const remainingSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+    
+    this.renderScore(ctx);
+    this.renderStamina(ctx);
+    this.renderTimer(remainingSeconds, ctx);
+    this.renderNpcHint(ctx);
+    this.renderDialogue(ctx);
+  }
+
+  measureWrappedText(
+    text: string,
+    maxWidth: number,
+    lineHeight: number,
+    ctx: CanvasRenderingContext2D = stateVariables.ctx
+  ) {
+    const words = text.split(" ");
+    let line = "";
+    let lines = 1;
+
+    words.forEach((word) => {
+      const testLine = `${line}${word} `;
+      if (ctx.measureText(testLine).width > maxWidth && line) {
+        line = `${word} `;
+        lines++;
+      } else {
+        line = testLine;
+      }
+    });
+
+    return lines * lineHeight;
   }
 }
