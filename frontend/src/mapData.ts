@@ -241,9 +241,12 @@ export const mapData = {
       { x: -3857, y: -594.5, w: -3937, h: -734.5, color: "blue" },
       { x: -3857, y: -904.5, w: -3937, h: -1049.5, color: "blue" },
       { x: 803, y: -254.5, w: 408, h: -379.5, color: "blue" },
+      // Door collider — blocks the house entrance so the player cannot enter
+      { x: -2172, y: -2053, w: -2247, h: -2128, color: "blue" },
     ],
     events: {
       doors: [
+        /* DOOR DISABLED — teleport to house commented out
         {
           h: -2128,
           w: -2247,
@@ -256,6 +259,7 @@ export const mapData = {
             y: -180 - (922 - stateVariables.windowHeight) / 2,
           },
         },
+        */
       ],
     },
     depth: {
