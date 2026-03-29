@@ -33,7 +33,7 @@
 html,
 body {
   height: 100%;
-  background: #d7c1b1;
+  background: #B7E9F6;
   font-family: Outfit, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
 }
 
@@ -821,14 +821,15 @@ canvas {
 
 /* Game Over overlay */
 #app[data-theme="gameover"] {
-  background: transparent;
+  background: #000;
+  z-index: 2000;
 }
 
 #app[data-theme="gameover"]::before {
   content: "";
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.25);
+  background: transparent;
   pointer-events: none;
 }
 
