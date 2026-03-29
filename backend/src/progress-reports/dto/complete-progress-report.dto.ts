@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsOptional, IsString, IsUUID } from "class-validator";
+import { IsObject, IsOptional, IsString, IsUUID } from "class-validator";
 
 export class CompleteProgressReportDto {
   @ApiProperty({
@@ -10,10 +10,17 @@ export class CompleteProgressReportDto {
   progressReportId!: string;
 
   @ApiProperty({
-    example: "The user is showing improving confidence and more balanced responses over recent sessions."
+    type: "object",
+    additionalProperties: true,
+    example: {
+      summary: "The user is showing improving confidence and more balanced responses.",
+      score: 78,
+      strengths: ["reflection", "recovery"],
+      concerns: ["avoidance under stress"]
+    }
   })
-  @IsString()
-  report!: string;
+  @IsObject()
+  report!: Record<string, unknown>;
 
   @ApiPropertyOptional({
     example: "Strong recent improvement, especially in reflection and recovery.",

@@ -26,9 +26,16 @@ export class ProgressReportDto {
 
   @ApiPropertyOptional({
     nullable: true,
-    example: "The user is showing improving confidence and more balanced responses over recent sessions."
+    type: "object",
+    additionalProperties: true,
+    example: {
+      summary: "The user is showing improving confidence and more balanced responses.",
+      score: 78,
+      strengths: ["reflection", "recovery"],
+      concerns: ["avoidance under stress"]
+    }
   })
-  report!: string | null;
+  report!: Record<string, unknown> | null;
 
   @ApiPropertyOptional({
     nullable: true,

@@ -5,6 +5,7 @@ import {
   NotFoundException
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { CompleteProgressReportDto } from "./dto/complete-progress-report.dto";
 import {
@@ -80,7 +81,7 @@ export class ProgressReportsService {
         id: dto.progressReportId
       },
       data: {
-        report: dto.report,
+        report: dto.report as Prisma.InputJsonValue,
         feedback: dto.feedback ?? null,
         status: "COMPLETED"
       }
