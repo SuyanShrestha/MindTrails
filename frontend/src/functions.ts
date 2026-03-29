@@ -236,6 +236,8 @@ function loadPlayerSprites(): DirectionalSprites {
 export function initializeGame(_questions?: any[]) {
   adjustCanvasSize();
   stateVariables.keyState = {};
+  stateVariables.completedNpcKeys.clear();
+  stateVariables.pendingFeedbackNpcKey = null;
 
   stateVariables.bgImage = new Maps("main-map.jpg");
   stateVariables.bgImage.initialiseImages();

@@ -1230,6 +1230,8 @@ function resetGameState() {
   stateVariables.endTimeMs = 0;
   stateVariables.timerPausedAtMs = null;
   stateVariables.interactions = [];
+  stateVariables.completedNpcKeys.clear();
+  stateVariables.pendingFeedbackNpcKey = null;
 
   stateVariables.npcs = [];
   stateVariables.clockPickups = [];

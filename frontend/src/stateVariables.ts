@@ -104,6 +104,8 @@ export const stateVariables = {
   gamePaused: false,
   gameOverShown: false,
   interactions: [] as NpcInteraction[],
+  completedNpcKeys: new Set<string>(),
+  pendingFeedbackNpcKey: null as string | null,
   currentSessionId: null as string | null,
   gameQuestions: [] as any[],
   sessionPrefetchPromise: null as Promise<any> | null,

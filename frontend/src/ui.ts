@@ -1,5 +1,6 @@
 import { GameApi } from "./api/game";
 import { stateVariables } from "./stateVariables";
+import { isNpcCompleted, markNpcCompleted, renderCompletedNpcEmojiBubble } from "./npcCompletion";
 
 export class Ui {
   private updateTypewriterText(fullText: string, npcIndex: number) {
@@ -245,6 +246,11 @@ export class Ui {
     if (stateVariables.dialogueThankYouNpcIndex !== -1 && stateVariables.dialogueThankYouStartedMs > 0) {
       const thankNpc = stateVariables.npcs[stateVariables.dialogueThankYouNpcIndex];
       if (thankNpc) {
+        // Mark pending feedback as "shown" as soon as the bubble becomes active.
+        const thankKey = thankNpc.dialogue.questionId ?? thankNpc.dialogue.name;
+        if (stateVariables.pendingFeedbackNpcKey === thankKey) {
+          stateVariables.pendingFeedbackNpcKey = null;
+        }
         const elapsed = now - stateVariables.dialogueThankYouStartedMs;
         const durationMs = 1300;
         if (elapsed >= 0) {
@@ -343,6 +349,18 @@ export class Ui {
       }
     }
 
+    // 2. If this NPC was already completed, show an emoji indicator instead of reopening dialogue.
+    if (stateVariables.activeNpcIndex !== -1) {
+      const npc = stateVariables.npcs[stateVariables.activeNpcIndex];
+      // While the feedback bubble is active after submitting an answer, avoid rendering the emoji indicator.
+      const feedbackBubbleActive =
+        stateVariables.dialogueThankYouNpcIndex !== -1 && stateVariables.dialogueThankYouStartedMs > 0;
+      const pendingFeedbackForThisNpc =
+        npc &&
+        stateVariables.pendingFeedbackNpcKey === (npc.dialogue.questionId ?? npc.dialogue.name);
+      if (!feedbackBubbleActive && !pendingFeedbackForThisNpc && npc && renderCompletedNpcEmojiBubble(npc, ctx, "😊")) return;
+    }
+
     // handle "Press closer to talk" hint
     if (stateVariables.activeNpcIndex !== -1) {
       const npc = stateVariables.npcs[stateVariables.activeNpcIndex];
@@ -379,6 +397,7 @@ export class Ui {
     const activeNpc = stateVariables.activeNpcIndex !== -1 ? stateVariables.npcs[stateVariables.activeNpcIndex] : null;
     const isAtNpc = activeNpc && activeNpc.isPlayerAt();
     const desiredNpcIndex = isAtNpc ? stateVariables.activeNpcIndex : -1;
+    const isCompletedNpc = !!(activeNpc && isAtNpc && isNpcCompleted(activeNpc));
 
     if (
       stateVariables.dialogueSuppressedNpcIndex !== -1 &&
@@ -401,6 +420,7 @@ export class Ui {
 
     const shouldShowDialogue =
       desiredNpcIndex !== -1 &&
+      !isCompletedNpc &&
       desiredNpcIndex !== stateVariables.dialogueSuppressedNpcIndex;
 
     if (shouldShowDialogue) {
@@ -791,6 +811,8 @@ export class Ui {
           const questionId = npc.dialogue.questionId;
           const answerId = npc.dialogue.answerIds?.[clickedIndex];
           const responseTimeMs = Math.max(0, now - stateVariables.dialogueOptionsRevealAtMs);
+          // Hide the "completed" emoji until the feedback bubble has actually shown at least once.
+          stateVariables.pendingFeedbackNpcKey = npc.dialogue.questionId ?? npc.dialogue.name;
 
           if (stateVariables.currentSessionId && questionId && answerId) {
             GameApi.answerQuestion(
@@ -818,6 +840,7 @@ export class Ui {
             optionText: chosenText,
             timeMs: now,
           });
+          markNpcCompleted(npc);
           stateVariables.player.score += 1;
 
           stateVariables.dialogueSelectedOptionIndex = clickedIndex;
