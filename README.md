@@ -182,11 +182,12 @@ npm run build
 - Frontend proxy setup: `frontend/vite.config.ts` + `frontend/.env`
 - Backend environment reference: `backend/.env.example`
 - If you’re demoing without external network access, make sure the AI backend is running locally and `AI_BACKEND_URL` points to it.
+
 ## Screenshots
-![Land](./docs/land.png)
-![Space](./docs/space.png)
-![Home](./docs/home.png)
-![Talk](./docs/talk.png)
-![Control](./docs/control.png)
-![Game](./docs/game.png)
-![Progress](./docs/progress.png)
+![Land](./frontend/public/screenshots/land.png)
+![Space](./frontend/public/screenshots/space.png)
+![Home](./frontend/public/screenshots/home.png)
+![Talk](./frontend/public/screenshots/talk.png)
+![Control](./frontend/public/screenshots/control.png)
+![Game](./frontend/public/screenshots/game.png)
+![Progress](./frontend/public/screenshots/progress.png)
